@@ -457,10 +457,12 @@ def load_stats():
             "recentLog": [], "betsLog": []}
 
 def record_outcome(stats, pred, actual_up, resolution=None):
+    if pred.get("direction") == "NEUTRAL":
+        return None  # NEUTRAL predictions are not counted in accuracy stats
+
     sigs     = pred.get("signals", {})
     pred_up  = pred.get("predictedUp", True)
-    neutral  = pred.get("direction") == "NEUTRAL"
-    correct  = (pred_up == actual_up) or neutral
+    correct  = pred_up == actual_up
 
     stats["total"]   += 1
     if correct: stats["correct"] += 1

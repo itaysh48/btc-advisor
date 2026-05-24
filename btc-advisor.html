@@ -195,7 +195,7 @@
     </div>
     <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:10px">
       <div class="acc-stat">
-        <span class="acc-label">דיוק כולל</span>
+        <span class="acc-label">דיוק כיווני (UP/DOWN)</span>
         <span class="acc-big" id="cloud-acc-total" style="font-size:26px">—</span>
         <span class="acc-sub" id="cloud-acc-sub">—</span>
       </div>
@@ -666,11 +666,13 @@ function getHistoricalSample(model, f) {
 
 // Called at window start — saves current prediction so we can learn from it later
 function recordPrediction(f, prob) {
+  const isNeutral = prob >= 0.45 && prob <= 0.55;
   pendingPred = {
     winTs:       currentWin,
     fKey:        featureKey(f),
     fbKey:       `${f.p1}${f.p2}${f.p3}_${f.magBucket}`,
-    predictedUp: prob >= 0.5,
+    predictedUp: prob > 0.55,
+    direction:   isNeutral ? 'NEUTRAL' : (prob > 0.55 ? 'UP' : 'DOWN'),
     prob,
   };
 }
@@ -713,13 +715,14 @@ async function learnFromClosedWindow(candles) {
     source   = 'bitstamp';
   }
 
+  const isNeutral = pendingPred.direction === 'NEUTRAL';
   const correct = actualUp === pendingPred.predictedUp;
   const outcome = actualUp ? 1 : 0;
 
   // Wrong prediction → weight 3× to learn faster from mistakes
   const weight = correct ? 1 : 3;
 
-  // Update full-feature table
+  // Update full-feature table (always — model still learns from NEUTRAL windows)
   if (!model.table[pendingPred.fKey])
     model.table[pendingPred.fKey] = { up: 0, total: 0 };
   model.table[pendingPred.fKey].up    += outcome * weight;
@@ -737,18 +740,20 @@ async function learnFromClosedWindow(candles) {
   model.timeTable[ctx].up    += outcome * weight;
   model.timeTable[ctx].total += weight;
 
-  // Update online stats
-  model.onlineLearned = (model.onlineLearned || 0) + 1;
-  model.onlineCorrect = (model.onlineCorrect || 0) + (correct ? 1 : 0);
+  // Only track accuracy stats for directional calls (UP or DOWN, not NEUTRAL)
+  if (!isNeutral) {
+    model.onlineLearned = (model.onlineLearned || 0) + 1;
+    model.onlineCorrect = (model.onlineCorrect || 0) + (correct ? 1 : 0);
 
-  // Learning log (last 10, for live display)
-  learnLog.unshift({ winTs:prevWin, prob:pendingPred.prob, predictedUp:pendingPred.predictedUp, actualUp, correct, weight, source,
-    priceToBeat: resolution?.priceToBeat, finalPrice: resolution?.finalPrice });
-  if (learnLog.length > 10) learnLog.pop();
+    // Learning log (last 10, for live display)
+    learnLog.unshift({ winTs:prevWin, prob:pendingPred.prob, predictedUp:pendingPred.predictedUp, actualUp, correct, weight, source,
+      priceToBeat: resolution?.priceToBeat, finalPrice: resolution?.finalPrice });
+    if (learnLog.length > 10) learnLog.pop();
 
-  // Full accuracy log (last 1000, for pattern analysis)
-  accuracyLog.push({ winTs:prevWin, fKey:pendingPred.fKey, fbKey:pendingPred.fbKey, predictedUp:pendingPred.predictedUp, actualUp, correct, prob:pendingPred.prob, ctx, source });
-  if (accuracyLog.length > 1000) accuracyLog.shift();
+    // Full accuracy log (last 1000, for pattern analysis)
+    accuracyLog.push({ winTs:prevWin, fKey:pendingPred.fKey, fbKey:pendingPred.fbKey, predictedUp:pendingPred.predictedUp, actualUp, correct, prob:pendingPred.prob, ctx, source });
+    if (accuracyLog.length > 1000) accuracyLog.shift();
+  }
 
   pendingPred = null;
 
