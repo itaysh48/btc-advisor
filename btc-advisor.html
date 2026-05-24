@@ -138,6 +138,14 @@
     @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
 
     @media(max-width:850px){.top-grid{grid-template-columns:1fr}#chart-el{height:280px}}
+
+    /* ── Polymarket Live Panel ── */
+    #poly-live{display:none;background:#161b22;border:1px solid #f0c04055;border-radius:10px;padding:14px 18px;margin-top:16px}
+    .poly-title{font-size:11px;color:#f0c040;font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+    .poly-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#f85149;animation:pulse 1s infinite}
+    .odds-track{height:22px;background:#21262d;border-radius:6px;overflow:hidden;display:flex;margin:6px 0 10px}
+    .odds-seg{display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;transition:width .6s ease;min-width:28px}
+    .comb-box{background:#0d1117;border-radius:8px;padding:10px 14px;margin-top:10px}
   </style>
 </head>
 <body>
@@ -340,6 +348,44 @@
       </div>
 
     </div><!-- /top-grid -->
+
+    <!-- Polymarket Live Panel -->
+    <div id="poly-live">
+      <div class="poly-title">
+        <span class="poly-dot"></span>LIVE · Polymarket BTC 5m — סיכויים בזמן אמת
+        <span style="margin-right:auto;font-size:10px;color:#484f58;font-weight:400" id="poly-updated"></span>
+        <a id="poly-mkt-link" href="https://polymarket.com" target="_blank" rel="noopener" style="font-size:11px;color:#388bfd;text-decoration:none;white-space:nowrap">פתח שוק ↗</a>
+      </div>
+
+      <!-- Odds bar -->
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:#8b949e;margin-bottom:2px">
+        <span>⬆ UP — <strong id="poly-up-pct" style="color:#3fb950">—</strong></span>
+        <span>⬇ DOWN — <strong id="poly-dn-pct" style="color:#f85149">—</strong></span>
+      </div>
+      <div class="odds-track">
+        <div class="odds-seg" id="poly-up-bar" style="background:#3fb95077;color:#3fb950">—</div>
+        <div class="odds-seg" id="poly-dn-bar" style="background:#f8514977;color:#f85149;flex:1;justify-content:flex-end">—</div>
+      </div>
+
+      <!-- Stats row -->
+      <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:11px;color:#8b949e;margin-bottom:4px">
+        <span>ווליום: <strong id="poly-vol" style="color:#e6edf3">—</strong></span>
+        <span>נזילות: <strong id="poly-liq" style="color:#e6edf3">—</strong></span>
+        <span id="poly-sentiment" style="font-weight:700"></span>
+      </div>
+
+      <!-- Combined recommendation -->
+      <div class="comb-box">
+        <div style="font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">המלצה משולבת — בוט + קהל</div>
+        <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:center;margin-bottom:8px">
+          <span style="font-size:12px;color:#8b949e">🤖 בוט: <span id="comb-bot"></span></span>
+          <span style="font-size:12px;color:#8b949e">👥 קהל: <span id="comb-crowd"></span></span>
+        </div>
+        <div id="comb-result" style="font-size:20px;font-weight:900;margin-bottom:4px">—</div>
+        <div id="comb-note" style="font-size:12px;color:#8b949e">—</div>
+      </div>
+    </div>
+
   </div><!-- /main -->
 </div>
 
@@ -375,6 +421,11 @@ let accuracyLog  = [];    // full history: [{winTs,fKey,fbKey,predictedUp,actual
 let cloudUrl     = localStorage.getItem(LS_CLOUD) || '';
 let cloudData    = null;
 let cloudIv      = null;
+
+// Live Polymarket state
+let lastBotProb  = 0.5;
+let lastBotDir   = 'NEUTRAL';
+let polyLiveData = null;
 
 // ═══════════════════════════════════════
 //  UTILS
@@ -900,6 +951,10 @@ function renderPrediction(candles, price) {
   // Record this prediction so we can learn from the outcome later
   recordPrediction(f, prob);
 
+  // Save for combined recommendation with crowd
+  lastBotProb = prob;
+  lastBotDir  = shouldBet ? (isUp ? 'UP' : 'DOWN') : 'NEUTRAL';
+
   // Edge = distance from 50%. Bet only when edge > 3% (prob > 53% or < 47%)
   const edge = Math.abs(prob - 0.5);
   const shouldBet = edge >= 0.03;
@@ -1007,7 +1062,7 @@ async function updateMarketLink() {
 async function refresh() {
   try {
     hideErr();
-    const [candles, price] = await Promise.all([fetchKlines(null, 150), fetchPrice()]);
+    const [candles, price, polyData] = await Promise.all([fetchKlines(null, 150), fetchPrice(), fetchPolyLive()]);
     lastCandles = candles;
 
     // Strike: price at window boundary
@@ -1026,6 +1081,7 @@ async function refresh() {
 
     renderChart(candles, price, strikePrice);
     renderPrediction(candles, price);
+    renderPolyLive(polyData);
     if (strikePrice) $('strike-val').textContent = fmt$(strikePrice);
 
     // Price To Beat — live comparison
@@ -1368,6 +1424,109 @@ function renderCloudStats(cs) {
         </div>`;
       }).join('')}`;
   }
+}
+
+// ═══════════════════════════════════════
+//  POLYMARKET LIVE
+// ═══════════════════════════════════════
+
+async function fetchPolyLive() {
+  try {
+    const ts   = winTs();
+    const slug = `btc-updown-5m-${ts}`;
+    const d    = await fetchJSON(`https://gamma-api.polymarket.com/events?slug=${slug}`);
+    if (!d || !d.length) return null;
+    const markets = d[0].markets || [];
+    for (const mkt of markets) {
+      const prices = mkt.outcomePrices || [];
+      if (prices.length < 2) continue;
+      const p0 = parseFloat(prices[0]);
+      if (p0 > 0.98 || p0 < 0.02) continue; // already resolved
+      return {
+        upProb:    p0,
+        downProb:  parseFloat(prices[1]),
+        volume:    parseFloat(mkt.volume    || 0),
+        liquidity: parseFloat(mkt.liquidity || 0),
+        slug,
+      };
+    }
+  } catch {}
+  return null;
+}
+
+function fmtVol(n) {
+  if (!n || n <= 0) return '—';
+  if (n >= 1000) return '$' + (n / 1000).toFixed(1) + 'k';
+  return '$' + n.toFixed(0);
+}
+
+function renderPolyLive(data) {
+  if (!data) { $('poly-live').style.display = 'none'; return; }
+  $('poly-live').style.display = 'block';
+
+  const upPct = Math.round(data.upProb * 100);
+  const dnPct = 100 - upPct;
+
+  // Odds bar
+  $('poly-up-bar').style.width  = upPct + '%';
+  $('poly-up-bar').textContent  = upPct + '%';
+  $('poly-dn-bar').textContent  = dnPct + '%';
+  $('poly-up-pct').textContent  = upPct + '%';
+  $('poly-dn-pct').textContent  = dnPct + '%';
+
+  // Volume / liquidity
+  $('poly-vol').textContent = fmtVol(data.volume);
+  $('poly-liq').textContent = fmtVol(data.liquidity);
+
+  // Crowd sentiment label
+  const s = $('poly-sentiment');
+  if      (upPct >= 65) { s.textContent = '🐂 קהל — UP חזק';   s.style.color = '#3fb950'; }
+  else if (upPct <= 35) { s.textContent = '🐻 קהל — DOWN חזק'; s.style.color = '#f85149'; }
+  else                  { s.textContent = '⚖️ קהל — ניטרלי';   s.style.color = '#8b949e'; }
+
+  // Timestamp & link
+  $('poly-updated').textContent = new Date().toLocaleTimeString('he-IL');
+  $('poly-mkt-link').href = `https://polymarket.com/event/${data.slug}`;
+
+  // Combined recommendation
+  renderCombinedRec(data.upProb);
+}
+
+function renderCombinedRec(crowdUpProb) {
+  const upPct = Math.round(crowdUpProb * 100);
+  const crowdDir = crowdUpProb >= 0.58 ? 'UP' : crowdUpProb <= 0.42 ? 'DOWN' : 'NEUTRAL';
+
+  // Bot display
+  const botClr   = lastBotDir === 'UP' ? '#3fb950' : lastBotDir === 'DOWN' ? '#f85149' : '#f0c040';
+  const botArrow = lastBotDir === 'UP' ? '▲' : lastBotDir === 'DOWN' ? '▼' : '—';
+  $('comb-bot').innerHTML  = `<span style="color:${botClr};font-weight:700">${botArrow} ${lastBotDir} (${Math.round(lastBotProb*100)}%)</span>`;
+
+  // Crowd display
+  const crowdClr   = crowdDir === 'UP' ? '#3fb950' : crowdDir === 'DOWN' ? '#f85149' : '#8b949e';
+  const crowdArrow = crowdDir === 'UP' ? '⬆' : crowdDir === 'DOWN' ? '⬇' : '⚖';
+  $('comb-crowd').innerHTML = `<span style="color:${crowdClr};font-weight:700">${crowdArrow} ${upPct}%</span>`;
+
+  // Combined result logic
+  let result, note, color;
+  if (lastBotDir === 'UP' && crowdDir === 'UP') {
+    result = '▲ UP';   color = '#3fb950'; note = 'בוט וקהל מסכימים — סיגנל חזק';
+  } else if (lastBotDir === 'DOWN' && crowdDir === 'DOWN') {
+    result = '▼ DOWN'; color = '#f85149'; note = 'בוט וקהל מסכימים — סיגנל חזק';
+  } else if (lastBotDir === 'UP' && crowdDir === 'DOWN') {
+    result = '⚠ UP';   color = '#f0c040'; note = 'בוט UP מול קהל DOWN — היזהר';
+  } else if (lastBotDir === 'DOWN' && crowdDir === 'UP') {
+    result = '⚠ DOWN'; color = '#f0c040'; note = 'בוט DOWN מול קהל UP — היזהר';
+  } else if (lastBotDir !== 'NEUTRAL' && crowdDir === 'NEUTRAL') {
+    result = `${botArrow} ${lastBotDir}`; color = botClr; note = 'בוט מוביל — קהל ניטרלי';
+  } else if (lastBotDir === 'NEUTRAL' && crowdDir !== 'NEUTRAL') {
+    result = `${crowdArrow} ${crowdDir}`; color = crowdClr; note = `קהל מוביל ${crowdDir} — בוט ניטרלי`;
+  } else {
+    result = '⏸ NEUTRAL'; color = '#f0c040'; note = 'אין יתרון ברור — מומלץ לא להמר';
+  }
+
+  $('comb-result').textContent = result;
+  $('comb-result').style.color = color;
+  $('comb-note').textContent   = note;
 }
 
 // ═══════════════════════════════════════
