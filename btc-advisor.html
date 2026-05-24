@@ -1461,8 +1461,28 @@ function fmtVol(n) {
 }
 
 function renderPolyLive(data) {
-  if (!data) { $('poly-live').style.display = 'none'; return; }
   $('poly-live').style.display = 'block';
+
+  if (!data) {
+    // No active market yet — show waiting state
+    $('poly-up-bar').style.width = '50%';
+    $('poly-up-bar').textContent = '';
+    $('poly-dn-bar').textContent = '';
+    $('poly-up-pct').textContent = '—';
+    $('poly-dn-pct').textContent = '—';
+    $('poly-vol').textContent = '—';
+    $('poly-liq').textContent = '—';
+    const s = $('poly-sentiment');
+    s.textContent = '⏳ ממתין לשוק הבא...';
+    s.style.color = '#484f58';
+    $('poly-updated').textContent = new Date().toLocaleTimeString('he-IL');
+    $('comb-result').textContent = '—';
+    $('comb-result').style.color = '#484f58';
+    $('comb-note').textContent = 'שוק לא פעיל — בקרוב';
+    $('comb-bot').innerHTML = '';
+    $('comb-crowd').innerHTML = '';
+    return;
+  }
 
   const upPct = Math.round(data.upProb * 100);
   const dnPct = 100 - upPct;
@@ -1535,6 +1555,7 @@ function renderCombinedRec(crowdUpProb) {
 initChart();
 currentWin = winTs();
 updateMarketLink();
+renderPolyLive(null); // show panel immediately with waiting state
 
 (async () => {
   try {
