@@ -386,18 +386,18 @@ def make_pred(mdl, candles, ts, crowd_up_prob=None):
     if not f: return None
     prob = combined_prob(mdl, f, ts, crowd_up_prob)
 
-    # Tighter neutral zone for higher precision
-    neutral   = 0.40 <= prob <= 0.60
+    # Neutral zone: only skip when truly no signal
+    neutral   = 0.45 <= prob <= 0.55
     direction = "NEUTRAL" if neutral else ("UP" if prob > 0.5 else "DOWN")
     cs        = abs(prob - 0.5) * 2
-    conf      = "גבוה" if cs > 0.35 else ("בינוני" if cs > 0.18 else "נמוך")
+    conf      = "גבוה" if cs > 0.30 else ("בינוני" if cs > 0.15 else "נמוך")
 
     return {
         "winTs":      ts,
         "fKey":       fkey(f),
         "fbKey":      fkey_fb(f),
         "direction":  direction,
-        "predictedUp": prob > 0.60,
+        "predictedUp": prob > 0.55,
         "prob":       round(prob, 4),
         "confidence": conf,
         "crowdUpProb": crowd_up_prob,
