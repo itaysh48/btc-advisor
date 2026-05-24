@@ -951,13 +951,13 @@ function renderPrediction(candles, price) {
   // Record this prediction so we can learn from the outcome later
   recordPrediction(f, prob);
 
-  // Save for combined recommendation with crowd
-  lastBotProb = prob;
-  lastBotDir  = shouldBet ? (isUp ? 'UP' : 'DOWN') : 'NEUTRAL';
-
   // Edge = distance from 50%. Bet only when edge > 3% (prob > 53% or < 47%)
   const edge = Math.abs(prob - 0.5);
   const shouldBet = edge >= 0.03;
+
+  // Save for combined recommendation with crowd
+  lastBotProb = prob;
+  lastBotDir  = shouldBet ? (isUp ? 'UP' : 'DOWN') : 'NEUTRAL';
 
   // Active signal source (for transparency)
   let activeSig = 'מודל היסטורי';
