@@ -900,9 +900,9 @@ function renderPrediction(candles, price) {
   // Record this prediction so we can learn from the outcome later
   recordPrediction(f, prob);
 
-  // Edge = distance from 50%. Bet only when edge > 5% (prob > 55% or < 45%)
+  // Edge = distance from 50%. Bet only when edge > 3% (prob > 53% or < 47%)
   const edge = Math.abs(prob - 0.5);
-  const shouldBet = edge >= 0.05;
+  const shouldBet = edge >= 0.03;
 
   // Active signal source (for transparency)
   let activeSig = 'מודל היסטורי';
@@ -926,7 +926,7 @@ function renderPrediction(candles, price) {
   fill.style.background = shouldBet ? (isUp ? '#3fb950' : '#f85149') : '#f0c040';
   fill.style.width      = `${prob * 100}%`;
 
-  const confLabel = edge > 0.15 ? 'ביטחון גבוה' : edge > 0.09 ? 'ביטחון בינוני' : edge > 0.05 ? 'ביטחון נמוך' : 'אין סיגנל — אל תהמר';
+  const confLabel = edge > 0.15 ? 'ביטחון גבוה' : edge > 0.09 ? 'ביטחון בינוני' : edge > 0.03 ? 'ביטחון נמוך' : 'אין סיגנל — אל תהמר';
   const n = getHistoricalSample(model, f);
   $('prob-conf').textContent = `${confLabel} · ${n} דוגמאות · ${activeSig}`;
 

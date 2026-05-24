@@ -164,7 +164,7 @@ def rsi_bucket(rsi):
     return "ob"
 
 def features(candles, i):
-    if i < 30 or i > len(candles) - 1: return None
+    if i < 30 or i > len(candles): return None
     hist   = candles[max(0, i-25):i]
     closes = [c["c"] for c in hist]
     last_c = closes[-1]
@@ -320,7 +320,7 @@ def combined_prob(mdl, f, ts, crowd_up_prob=None):
         direct = direct * 0.80 + (1 - direct) * 0.20
 
     rw = 1 - dw
-    prob = direct*dw + main*(rw*0.70) + time_adj*(rw*0.12) + base*(rw*0.08)
+    prob = direct*dw + main*(rw*0.80) + time_adj*(rw*0.12) + base*(rw*0.08)
 
     # Crowd signal (10% weight when available — learn from other bettors)
     if crowd_sig is not None:
