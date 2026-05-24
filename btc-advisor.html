@@ -1062,7 +1062,7 @@ async function updateMarketLink() {
 async function refresh() {
   try {
     hideErr();
-    const [candles, price, polyData] = await Promise.all([fetchKlines(null, 150), fetchPrice(), fetchPolyLive()]);
+    const [candles, price] = await Promise.all([fetchKlines(null, 150), fetchPrice()]);
     lastCandles = candles;
 
     // Strike: price at window boundary
@@ -1081,7 +1081,6 @@ async function refresh() {
 
     renderChart(candles, price, strikePrice);
     renderPrediction(candles, price);
-    renderPolyLive(polyData);
     if (strikePrice) $('strike-val').textContent = fmt$(strikePrice);
 
     // Price To Beat — live comparison
@@ -1431,27 +1430,36 @@ function renderCloudStats(cs) {
 // ═══════════════════════════════════════
 
 async function fetchPolyLive() {
-  try {
-    const ts   = winTs();
-    const slug = `btc-updown-5m-${ts}`;
-    const d    = await fetchJSON(`https://gamma-api.polymarket.com/events?slug=${slug}`);
-    if (!d || !d.length) return null;
-    const markets = d[0].markets || [];
-    for (const mkt of markets) {
-      const prices = mkt.outcomePrices || [];
-      if (prices.length < 2) continue;
-      const p0 = parseFloat(prices[0]);
-      if (p0 > 0.98 || p0 < 0.02) continue; // already resolved
-      return {
-        upProb:    p0,
-        downProb:  parseFloat(prices[1]),
-        volume:    parseFloat(mkt.volume    || 0),
-        liquidity: parseFloat(mkt.liquidity || 0),
-        slug,
-      };
-    }
-  } catch {}
+  // Try current window, then next window (covers the gap between market close & new open)
+  const candidates = [winTs(), nextWin()];
+  for (const ts of candidates) {
+    try {
+      const slug = `btc-updown-5m-${ts}`;
+      const d    = await fetchJSON(`https://gamma-api.polymarket.com/events?slug=${slug}`);
+      if (!d || !d.length) continue;
+      const markets = d[0].markets || [];
+      for (const mkt of markets) {
+        const prices = mkt.outcomePrices || [];
+        if (prices.length < 2) continue;
+        const p0 = parseFloat(prices[0]);
+        if (p0 > 0.98 || p0 < 0.02) continue; // resolved — skip
+        return {
+          upProb:    p0,
+          downProb:  parseFloat(prices[1]),
+          volume:    parseFloat(mkt.volume    || 0),
+          liquidity: parseFloat(mkt.liquidity || 0),
+          slug,
+          windowTs:  ts,
+        };
+      }
+    } catch {}
+  }
   return null;
+}
+
+async function pollPolyLive() {
+  const data = await fetchPolyLive();
+  renderPolyLive(data);
 }
 
 function fmtVol(n) {
@@ -1571,6 +1579,8 @@ renderPolyLive(null); // show panel immediately with waiting state
     if (accuracyLog.length) renderAccuracyCard();
     await refresh();
     setInterval(refresh, REFRESH);
+    // Poll Polymarket live odds every 5s — fast enough to feel real-time
+    setInterval(pollPolyLive, 5_000);
     // Catch window boundary within 10s — let refresh() handle the transition
     setInterval(() => { if (winTs() !== currentWin) refresh(); }, 10_000);
   } catch(e) {
