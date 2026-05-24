@@ -631,17 +631,23 @@ function combinedProb(table, fallback, timeTable, baseRate, f, ts) {
   const main = lookupProb(table, fallback, baseRate, f);
   const time = lookupTimeAdj(timeTable, ts);
 
-  // Direct signal from Chainlink pattern analysis (empirical):
-  // - after huge move (>0.2%): 80% continuation   → weight 45%
-  // - after big move  (>0.1%): 61% continuation   → weight 25%
-  // - strong trend (>70% UP) : 64% UP             → weight 20%
-  // - strong trend (<30% UP) : 64% DOWN           → weight 20%
+  // Direct signals — calibrated from 7,969 real BTC 5m candles
+  // KEY: large moves = REVERSAL (exhaustion), not continuation
+  // huge all-same-dir: 000_huge→70.8%UP, 111_huge→36.4%UP (reversal)
+  // big in downtrend:  001/000/010_big_sdn → 60–89% UP   (oversold bounce)
+  // big in uptrend:    111/110_big_sup → 41–42% UP        (overbought reversal)
   let direct = baseRate;
   let dw = 0;
-  if      (f.magBucket === 'huge') { direct = f.p1 ? 0.80 : 0.20; dw = 0.45; }
-  else if (f.magBucket === 'big')  { direct = f.p1 ? 0.61 : 0.39; dw = 0.25; }
-  else if (f.trendStrength === 'sup') { direct = 0.64; dw = 0.20; }
-  else if (f.trendStrength === 'sdn') { direct = 0.36; dw = 0.20; }
+  const allSame = (f.p1 === f.p2 && f.p2 === f.p3);
+  if (f.magBucket === 'huge') {
+    if (allSame) { direct = f.p1 ? 0.35 : 0.65; dw = 0.45; }   // exhaustion reversal
+    else         { direct = f.p1 ? 0.60 : 0.40; dw = 0.18; }   // mixed: weak continuation
+  } else if (f.magBucket === 'big') {
+    if      (f.trendStrength === 'sdn') { direct = 0.68; dw = 0.35; }  // oversold bounce UP
+    else if (f.trendStrength === 'sup') { direct = 0.42; dw = 0.20; }  // overbought reversal DOWN
+    else { direct = f.p1 ? 0.54 : 0.46; dw = 0.10; }                  // weak continuation
+  } else if (f.trendStrength === 'sdn') { direct = 0.57; dw = 0.12; }  // mean reversion UP
+  else if   (f.trendStrength === 'sup') { direct = 0.43; dw = 0.12; }  // mean reversion DOWN
 
   const rw = 1 - dw;
   const prob = direct * dw + main * (rw * 0.80) + time * (rw * 0.12) + baseRate * (rw * 0.08);
@@ -910,10 +916,16 @@ function renderPrediction(candles, price) {
 
   // Active signal source (for transparency)
   let activeSig = 'מודל היסטורי';
-  if      (f.magBucket === 'huge') activeSig = `תזוזה ענקית (${f.lastPctMove.toFixed(2)}%) → המשך 80%`;
-  else if (f.magBucket === 'big')  activeSig = `תזוזה גדולה (${f.lastPctMove.toFixed(2)}%) → המשך 61%`;
-  else if (f.trendStrength === 'sup') activeSig = `מגמה חזקה UP (${(f.upRatio10*100).toFixed(0)}%) → 64%`;
-  else if (f.trendStrength === 'sdn') activeSig = `מגמה חזקה DOWN (${(f.upRatio10*100).toFixed(0)}%) → 64%`;
+  if (f.magBucket === 'huge') {
+    activeSig = allSame
+      ? `היפוך קיצוני (${f.lastPctMove.toFixed(2)}%, ${f.p1?'3×UP':'3×DOWN'}) → ${f.p1?'DOWN':'UP'} 65%`
+      : `תנועה ענקית מעורבת (${f.lastPctMove.toFixed(2)}%) → המשך חלש`;
+  } else if (f.magBucket === 'big') {
+    if      (f.trendStrength === 'sdn') activeSig = `קפיצה מתוך ירידה (${f.lastPctMove.toFixed(2)}%) → UP 60–89%`;
+    else if (f.trendStrength === 'sup') activeSig = `היפוך מתוך עלייה (${f.lastPctMove.toFixed(2)}%) → DOWN 55–59%`;
+    else activeSig = `תנועה גדולה (${f.lastPctMove.toFixed(2)}%) → המשך חלש`;
+  } else if (f.trendStrength === 'sup') activeSig = `רוויה בעלייה (${(f.upRatio10*100).toFixed(0)}%) → לחץ DOWN`;
+  else if   (f.trendStrength === 'sdn') activeSig = `רוויה בירידה (${(f.upRatio10*100).toFixed(0)}%) → לחץ UP`;
 
   $('prob-pct').textContent = `${probPct}%`;
   if (shouldBet) {

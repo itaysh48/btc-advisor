@@ -302,12 +302,34 @@ def combined_prob(mdl, f, ts, crowd_up_prob=None):
     wick_sig = lookup_wick(wick_tbl, f)
     crowd_sig= lookup_crowd(crowd_tbl, crowd_up_prob)
 
-    # Direct empirical signals (from real Chainlink data analysis)
+    # Direct empirical signals — calibrated from 7,969 real BTC 5m candles
+    # KEY FINDING: large moves = REVERSAL, not continuation
     direct, dw = base, 0.0
-    if   f["mag"] == "huge": direct = 0.80 if f["p1"] else 0.20; dw = 0.40
-    elif f["mag"] == "big":  direct = 0.61 if f["p1"] else 0.39; dw = 0.22
-    elif f["trend"] == "sup": direct = 0.64; dw = 0.18
-    elif f["trend"] == "sdn": direct = 0.36; dw = 0.18
+    all_same = (f["p1"] == f["p2"] == f["p3"])
+
+    if f["mag"] == "huge":
+        if all_same:
+            # 000_huge→70.8% UP, 111_huge→36.4% UP: exhaustion reversal
+            direct = 1 - f["p1"]; dw = 0.45
+        else:
+            # Mixed pattern: weak continuation
+            direct = 0.60 if f["p1"] else 0.40; dw = 0.18
+    elif f["mag"] == "big":
+        if f["trend"] == "sdn":
+            # 001/000/010_big_sdn → 88.9/60.3/62.5% UP: oversold bounce
+            direct = 0.68; dw = 0.35
+        elif f["trend"] == "sup":
+            # 111/110_big_sup → 41.3/42.4% UP: overbought reversal
+            direct = 0.42; dw = 0.20
+        else:
+            # Neutral trend: weak signal
+            direct = 0.54 if f["p1"] else 0.46; dw = 0.10
+    elif f["trend"] == "sdn":
+        # Downtrend → mean reversion pressure UP
+        direct = 0.57; dw = 0.12
+    elif f["trend"] == "sup":
+        # Uptrend → mean reversion pressure DOWN
+        direct = 0.43; dw = 0.12
 
     # Wick reversal adjustment
     if wick_sig is not None:
