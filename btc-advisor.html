@@ -221,8 +221,35 @@
     <div style="height:10px;background:#21262d;border-radius:5px;overflow:hidden;margin-bottom:10px;display:flex" id="cloud-bar"></div>
     <!-- Error patterns -->
     <div id="cloud-patterns"></div>
+    <!-- Crowd analysis -->
+    <div id="cloud-crowd" style="margin-top:10px"></div>
     <!-- Recent log -->
     <div id="cloud-log" style="margin-top:10px"></div>
+  </div>
+
+  <!-- Bets History Panel -->
+  <div id="bets-panel" style="display:none;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 18px;margin-bottom:16px">
+    <div style="font-size:11px;color:#e6edf3;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px">
+      <span>📋 היסטוריית הימורים</span>
+      <span style="font-size:10px;color:#484f58;font-weight:400">פתיחה · סגירה · תחזית בוט · הימורי משתמשים · תוצאה</span>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="bets-table" style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr style="color:#8b949e;border-bottom:1px solid #30363d">
+            <th style="text-align:right;padding:4px 8px;font-weight:600">שעה</th>
+            <th style="text-align:right;padding:4px 8px;font-weight:600">פתיחה</th>
+            <th style="text-align:right;padding:4px 8px;font-weight:600">סגירה</th>
+            <th style="text-align:right;padding:4px 8px;font-weight:600">הפרש</th>
+            <th style="text-align:center;padding:4px 8px;font-weight:600">בוט אמר</th>
+            <th style="text-align:center;padding:4px 8px;font-weight:600">קהל</th>
+            <th style="text-align:center;padding:4px 8px;font-weight:600">תוצאה</th>
+            <th style="text-align:center;padding:4px 8px;font-weight:600">בוט</th>
+          </tr>
+        </thead>
+        <tbody id="bets-tbody"></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Accuracy card -->
@@ -1251,6 +1278,51 @@ function renderCloudStats(cs) {
     $('cloud-prob').textContent = `${((cp.prob||0)*100).toFixed(1)}% · ${cp.confidence||''}`;
     const s = cp.signals || {};
     $('cloud-sigs').textContent = `mag:${s.mag||'?'} trend:${s.trend||'?'} rsi:${s.rsi||'?'}`;
+  }
+
+  // Crowd analysis (learn from other bettors)
+  const ca = cs.crowdAnalysis;
+  if (ca && (ca.bull?.total > 0 || ca.bear?.total > 0)) {
+    let html = '<div style="font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase;margin-bottom:6px">ניתוח הימורי משתמשים (Polymarket)</div><div style="display:flex;gap:10px;flex-wrap:wrap">';
+    if (ca.bull?.total > 0) {
+      const a = (ca.bull.correct / ca.bull.total * 100).toFixed(0);
+      html += `<div style="background:#0d1117;border-radius:6px;padding:5px 10px;font-size:11px">🐂 קהל UP &gt;65% <span style="color:${clr(a)};font-weight:700">${a}% נכון</span> <span style="color:#484f58">(${ca.bull.total})</span></div>`;
+    }
+    if (ca.bear?.total > 0) {
+      const a = (ca.bear.correct / ca.bear.total * 100).toFixed(0);
+      html += `<div style="background:#0d1117;border-radius:6px;padding:5px 10px;font-size:11px">🐻 קהל DOWN &lt;35% <span style="color:${clr(a)};font-weight:700">${a}% נכון</span> <span style="color:#484f58">(${ca.bear.total})</span></div>`;
+    }
+    html += '</div>';
+    $('cloud-crowd').innerHTML = html;
+  }
+
+  // Bets history table
+  const bets = cs.betsLog || [];
+  if (bets.length > 0) {
+    $('bets-panel').style.display = 'block';
+    const fmt = n => n != null ? '$' + (+n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) : '—';
+    $('bets-tbody').innerHTML = bets.map(b => {
+      const botDir   = b.direction === 'UP' ? '▲ UP' : b.direction === 'DOWN' ? '▼ DOWN' : '— NEUTRAL';
+      const botClr   = b.direction === 'UP' ? '#3fb950' : b.direction === 'DOWN' ? '#f85149' : '#f0c040';
+      const resDir   = b.actualUp ? '▲ UP' : '▼ DOWN';
+      const resClr   = b.actualUp ? '#3fb950' : '#f85149';
+      const ok       = b.correct ? '✓' : '✗';
+      const okClr    = b.correct ? '#3fb950' : '#f85149';
+      const diffClr  = (b.priceDiff ?? 0) >= 0 ? '#3fb950' : '#f85149';
+      const diffTxt  = b.priceDiff != null ? ((b.priceDiff >= 0 ? '+' : '') + '$' + Math.abs(b.priceDiff).toFixed(2)) : '—';
+      const crowdTxt = b.crowdUp != null ? `${(b.crowdUp*100).toFixed(0)}% UP` : '—';
+      const crowdClr = b.crowdUp != null ? (b.crowdUp >= 0.65 ? '#3fb950' : b.crowdUp <= 0.35 ? '#f85149' : '#8b949e') : '#484f58';
+      return `<tr style="border-bottom:1px solid #21262d">
+        <td style="padding:5px 8px;color:#8b949e">${b.time||'—'}</td>
+        <td style="padding:5px 8px;color:#e6edf3;font-variant-numeric:tabular-nums">${fmt(b.priceToBeat)}</td>
+        <td style="padding:5px 8px;color:#e6edf3;font-variant-numeric:tabular-nums">${fmt(b.finalPrice)}</td>
+        <td style="padding:5px 8px;color:${diffClr};font-weight:700;font-variant-numeric:tabular-nums">${diffTxt}</td>
+        <td style="padding:5px 8px;text-align:center;color:${botClr};font-weight:700">${botDir}</td>
+        <td style="padding:5px 8px;text-align:center;color:${crowdClr};font-size:10px">${crowdTxt}</td>
+        <td style="padding:5px 8px;text-align:center;color:${resClr};font-weight:700">${resDir}</td>
+        <td style="padding:5px 8px;text-align:center;color:${okClr};font-weight:800;font-size:14px">${ok}</td>
+      </tr>`;
+    }).join('');
   }
 
   // Error patterns
