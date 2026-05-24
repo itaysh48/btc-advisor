@@ -29,13 +29,13 @@ jobs:
         run: pip install httpx
 
       - name: Run BTC worker
-        run: python btc-advisor/backend/worker.py
+        run: python backend/worker.py
 
       - name: Commit updated state
         run: |
           git config user.name  "btc-bot[bot]"
           git config user.email "btc-bot@users.noreply.github.com"
-          git add btc-advisor/state/
+          git add state/
           git diff --staged --quiet && echo "No changes to commit" && exit 0
           git commit -m "bot: update model state [skip ci]"
           git pull --rebase origin main
