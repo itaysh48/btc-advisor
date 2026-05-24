@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BTC Advisor – פולימרקט 5 דקות</title>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d1117; color: #e6edf3; font-family: 'Segoe UI', Arial, sans-serif; min-height: 100vh; }
+
+    #app { padding: 16px; direction: rtl; }
+
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; }
+    .header h1 { font-size: 20px; font-weight: 700; color: #e6edf3; }
+    .header .subtitle { font-size: 12px; color: #8b949e; margin-top: 3px; }
+    .header-right { text-align: left; font-size: 12px; color: #8b949e; }
+
+    .refresh-btn {
+      margin-top: 6px; padding: 4px 12px; background: #21262d;
+      border: 1px solid #30363d; border-radius: 5px; color: #8b949e;
+      cursor: pointer; font-size: 11px;
+    }
+    .refresh-btn:hover { background: #30363d; color: #e6edf3; }
+
+    .card {
+      background: #161b22; border: 1px solid #30363d;
+      border-radius: 10px; padding: 16px;
+    }
+
+    .chart-card { margin-bottom: 16px; overflow: hidden; }
+    .chart-header {
+      padding: 10px 16px; border-bottom: 1px solid #21262d;
+      font-size: 13px; color: #8b949e; display: flex; align-items: center; gap: 12px;
+    }
+    .strike-label { color: #f0c040; }
+
+    #chart { position: relative; }
+    .current-price-badge {
+      position: absolute; top: 8px; left: 12px;
+      background: #21262d; padding: 4px 10px; border-radius: 6px;
+      font-size: 13px; color: #e6edf3; font-weight: 600; z-index: 10;
+      pointer-events: none;
+    }
+
+    .bottom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+    /* Market info */
+    .card-label { font-size: 13px; color: #8b949e; margin-bottom: 12px; }
+    .market-top { display: flex; justify-content: space-around; margin-bottom: 16px; }
+    .market-stat { text-align: center; }
+    .stat-label { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+    .timer-value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .strike-value { font-size: 22px; font-weight: 600; color: #f0c040; }
+
+    .diff-line { text-align: center; font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+
+    .prob-row { display: flex; gap: 8px; margin-bottom: 16px; }
+    .prob-box { flex: 1; background: #0d1117; border-radius: 8px; padding: 10px 12px; }
+    .prob-box-label { font-size: 11px; color: #8b949e; margin-bottom: 6px; }
+    .prob-value { font-size: 22px; font-weight: 700; }
+    .prob-bar-track { height: 4px; background: #21262d; border-radius: 2px; margin-top: 6px; }
+    .prob-bar-fill { height: 100%; border-radius: 2px; transition: width 0.5s; }
+
+    .pm-link {
+      display: block; text-align: center; padding: 8px;
+      background: #21262d; border-radius: 6px; color: #388bfd;
+      text-decoration: none; font-size: 13px;
+    }
+    .pm-link:hover { background: #30363d; }
+
+    /* Advisor */
+    .rec-box {
+      border-radius: 10px; padding: 16px; margin-bottom: 16px; text-align: center;
+      border: 2px solid;
+    }
+    .rec-icon { font-size: 40px; font-weight: 900; line-height: 1; }
+    .rec-label { font-size: 22px; font-weight: 700; margin-top: 6px; }
+    .rec-conf { font-size: 13px; color: #8b949e; margin-top: 4px; }
+
+    .signal-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 6px 0; border-bottom: 1px solid #21262d; font-size: 12px;
+    }
+    .signal-name { color: #8b949e; }
+    .signal-weight { font-size: 10px; color: #484f58; margin-right: 4px; }
+    .signal-right { display: flex; align-items: center; gap: 8px; }
+    .signal-val { color: #8b949e; }
+    .signal-badge { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; }
+
+    .score-section { margin-top: 10px; }
+    .score-label { font-size: 11px; color: #8b949e; margin-bottom: 4px; }
+    .score-track { height: 8px; background: #21262d; border-radius: 4px; position: relative; }
+    .score-center { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: #484f58; }
+    .score-fill { position: absolute; top: 0; height: 100%; border-radius: 4px; transition: all 0.5s; }
+
+    .reasoning { font-size: 11px; color: #8b949e; margin-top: 10px; direction: rtl; }
+
+    .error-banner {
+      background: #f8514918; border: 1px solid #f85149;
+      border-radius: 8px; padding: 10px 16px; margin-bottom: 16px;
+      color: #f85149; font-size: 13px;
+    }
+    .loading { text-align: center; padding: 60px; color: #8b949e; font-size: 16px; }
+
+    @media (max-width: 700px) {
+      .bottom-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div id="app">
+  <div class="header">
+    <div>
+      <h1>BTC Advisor – פולימרקט 5 דקות</h1>
+      <div class="subtitle">ניתוח טכני + נתוני שוק בזמן אמת</div>
+    </div>
+    <div class="header-right">
+      <div id="last-update"></div>
+      <div id="refresh-countdown" style="color:#484f58">עדכון בעוד 15s</div>
+      <button class="refresh-btn" onclick="fetchData()">רענן עכשיו</button>
+    </div>
+  </div>
+
+  <div id="error-banner" class="error-banner" style="display:none"></div>
+  <div id="loading" class="loading">טוען נתונים...</div>
+
+  <div id="main-content" style="display:none">
+    <!-- Chart -->
+    <div class="card chart-card">
+      <div class="chart-header">
+        <span>BTC/USDT · 5 דקות · Binance</span>
+        <span class="strike-label" id="strike-header"></span>
+      </div>
+      <div id="chart" style="position:relative">
+        <div class="current-price-badge" id="price-badge"></div>
+        <div id="chart-container" style="width:100%;height:420px"></div>
+      </div>
+    </div>
+
+    <!-- Bottom row -->
+    <div class="bottom-grid">
+      <!-- Market Info -->
+      <div class="card" id="market-card">
+        <div class="card-label">שוק פולימרקט</div>
+        <div class="market-top">
+          <div class="market-stat">
+            <div class="stat-label">זמן לסגירה</div>
+            <div class="timer-value" id="timer">—</div>
+          </div>
+          <div class="market-stat">
+            <div class="stat-label">מחיר פתיחה (Strike)</div>
+            <div class="strike-value" id="strike-display">—</div>
+          </div>
+        </div>
+        <div class="diff-line" id="diff-line" style="display:none"></div>
+        <div class="prob-row">
+          <div class="prob-box">
+            <div class="prob-box-label">UP ▲</div>
+            <div class="prob-value" id="up-prob" style="color:#3fb950">—</div>
+            <div class="prob-bar-track"><div class="prob-bar-fill" id="up-bar" style="background:#3fb950"></div></div>
+          </div>
+          <div class="prob-box">
+            <div class="prob-box-label">DOWN ▼</div>
+            <div class="prob-value" id="down-prob" style="color:#f85149">—</div>
+            <div class="prob-bar-track"><div class="prob-bar-fill" id="down-bar" style="background:#f85149"></div></div>
+          </div>
+        </div>
+        <a class="pm-link" id="pm-link" href="#" target="_blank" rel="noopener noreferrer">פתח בפולימרקט ↗</a>
+      </div>
+
+      <!-- Advisor -->
+      <div class="card">
+        <div class="card-label">המלצת הבוט</div>
+        <div class="rec-box" id="rec-box">
+          <div class="rec-icon" id="rec-icon">~</div>
+          <div class="rec-label" id="rec-label">מחשב...</div>
+          <div class="rec-conf" id="rec-conf"></div>
+        </div>
+        <div id="signals-list"></div>
+        <div class="score-section">
+          <div class="score-label" id="score-label">ציון</div>
+          <div class="score-track">
+            <div class="score-center"></div>
+            <div class="score-fill" id="score-fill"></div>
+          </div>
+        </div>
+        <div class="reasoning" id="reasoning"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'http://localhost:8000'
+const REFRESH_INTERVAL = 15000
+let chart = null
+let candleSeries = null
+let volumeSeries = null
+let strikePriceLine = null
+let countdownVal = 15
+let countdownTimer = null
+let marketClosesAt = null
+let timerInterval = null
+let appData = null
+
+// ---- Chart init ----
+function initChart() {
+  const container = document.getElementById('chart-container')
+  chart = LightweightCharts.createChart(container, {
+    layout: { background: { color: '#0d1117' }, textColor: '#8b949e' },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    crosshair: { mode: 1 },
+    rightPriceScale: { borderColor: '#30363d' },
+    timeScale: { borderColor: '#30363d', timeVisible: true, secondsVisible: false },
+    width: container.clientWidth,
+    height: 420,
+  })
+
+  candleSeries = chart.addSeries(LightweightCharts.CandlestickSeries, {
+    upColor: '#3fb950', downColor: '#f85149',
+    borderUpColor: '#3fb950', borderDownColor: '#f85149',
+    wickUpColor: '#3fb950', wickDownColor: '#f85149',
+  })
+
+  volumeSeries = chart.addSeries(LightweightCharts.HistogramSeries, {
+    color: '#388bfd',
+    priceFormat: { type: 'volume' },
+    priceScaleId: 'volume',
+  })
+  chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } })
+
+  window.addEventListener('resize', () => {
+    chart.applyOptions({ width: container.clientWidth })
+  })
+}
+
+function updateChart(candles, currentPrice, strikePrice) {
+  if (!candleSeries) return
+  const sorted = [...candles].sort((a, b) => a.time - b.time)
+  candleSeries.setData(sorted)
+  volumeSeries.setData(sorted.map(c => ({
+    time: c.time,
+    value: c.volume,
+    color: c.close >= c.open ? '#3fb95055' : '#f8514955',
+  })))
+  chart.timeScale().fitContent()
+
+  // Update last candle with live price
+  if (currentPrice && sorted.length > 0) {
+    const last = sorted[sorted.length - 1]
+    candleSeries.update({
+      time: last.time,
+      open: last.open,
+      high: Math.max(last.high, currentPrice),
+      low: Math.min(last.low, currentPrice),
+      close: currentPrice,
+    })
+  }
+
+  // Strike price line
+  if (strikePriceLine) {
+    try { candleSeries.removePriceLine(strikePriceLine) } catch(e) {}
+    strikePriceLine = null
+  }
+  if (strikePrice) {
+    strikePriceLine = candleSeries.createPriceLine({
+      price: strikePrice,
+      color: '#f0c040',
+      lineWidth: 2,
+      lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title: 'Strike',
+    })
+  }
+}
+
+// ---- Countdown ----
+function startCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer)
+  countdownVal = REFRESH_INTERVAL / 1000
+  countdownTimer = setInterval(() => {
+    countdownVal = Math.max(0, countdownVal - 1)
+    const el = document.getElementById('refresh-countdown')
+    el.style.color = countdownVal < 5 ? '#f0c040' : '#484f58'
+    el.textContent = `עדכון בעוד ${countdownVal}s`
+  }, 1000)
+}
+
+// ---- Market timer ----
+function startMarketTimer(closesAt) {
+  if (timerInterval) clearInterval(timerInterval)
+  marketClosesAt = closesAt
+  const tick = () => {
+    const now = Math.floor(Date.now() / 1000)
+    const secs = Math.max(0, marketClosesAt - now)
+    const m = Math.floor(secs / 60)
+    const s = secs % 60
+    const el = document.getElementById('timer')
+    el.textContent = `${m}:${String(s).padStart(2,'0')}`
+    el.style.color = secs < 60 ? '#f85149' : secs < 120 ? '#f0c040' : '#3fb950'
+  }
+  tick()
+  timerInterval = setInterval(tick, 1000)
+}
+
+// ---- Render market info ----
+function renderMarket(market, currentPrice) {
+  if (!market) {
+    document.getElementById('strike-header').textContent = ''
+    document.getElementById('strike-display').textContent = '—'
+    document.getElementById('up-prob').textContent = '—'
+    document.getElementById('down-prob').textContent = '—'
+    document.getElementById('up-bar').style.width = '50%'
+    document.getElementById('down-bar').style.width = '50%'
+    return null
+  }
+
+  const strikePrice = market.strike_price || null
+  if (strikePrice) {
+    const fmt = Number(strikePrice).toLocaleString('en-US', { minimumFractionDigits: 2 })
+    document.getElementById('strike-display').textContent = `$${fmt}`
+    document.getElementById('strike-header').textContent = `Strike: $${fmt}`
+  } else {
+    document.getElementById('strike-display').textContent = '—'
+  }
+
+  if (market.closes_at) startMarketTimer(market.closes_at)
+
+  const up = market.up_probability || 50
+  const down = market.down_probability || 50
+  document.getElementById('up-prob').textContent = `${up.toFixed(1)}%`
+  document.getElementById('down-prob').textContent = `${down.toFixed(1)}%`
+  document.getElementById('up-bar').style.width = `${up}%`
+  document.getElementById('down-bar').style.width = `${down}%`
+
+  if (strikePrice && currentPrice) {
+    const diff = currentPrice - strikePrice
+    const diffLine = document.getElementById('diff-line')
+    diffLine.style.display = 'block'
+    diffLine.style.color = diff > 0 ? '#3fb950' : '#f85149'
+    const sign = diff > 0 ? '+' : ''
+    const dir = diff > 0 ? '▲ מעל' : '▼ מתחת'
+    diffLine.textContent = `${sign}${diff.toFixed(2)} (${dir})`
+  }
+
+  if (market.url) {
+    document.getElementById('pm-link').href = market.url
+  }
+
+  return strikePrice
+}
+
+// ---- Render advice ----
+function renderAdvice(advice) {
+  if (!advice) return
+
+  const { recommendation, confidence, score, signals, reasoning } = advice
+  const configs = {
+    UP: { color: '#3fb950', bg: '#3fb95018', border: '#3fb95066', icon: '▲', label: 'כן – מעל המחיר' },
+    DOWN: { color: '#f85149', bg: '#f8514918', border: '#f8514966', icon: '▼', label: 'לא – מתחת למחיר' },
+    NEUTRAL: { color: '#f0c040', bg: '#f0c04018', border: '#f0c04066', icon: '~', label: 'לא ברור' },
+  }
+  const cfg = configs[recommendation] || configs.NEUTRAL
+
+  const recBox = document.getElementById('rec-box')
+  recBox.style.background = cfg.bg
+  recBox.style.borderColor = cfg.border
+  document.getElementById('rec-icon').style.color = cfg.color
+  document.getElementById('rec-icon').textContent = cfg.icon
+  document.getElementById('rec-label').style.color = cfg.color
+  document.getElementById('rec-label').textContent = cfg.label
+  document.getElementById('rec-conf').innerHTML = `ביטחון: <span style="color:${cfg.color};font-weight:600">${confidence}%</span>`
+
+  // Signals
+  const SIGNAL_NAMES = { momentum: 'מומנטום', rsi: 'RSI(9)', ema: 'EMA 9/21', volume: 'נפח', polymarket: 'פולימרקט' }
+  const COLOR_MAP = { UP: '#3fb950', DOWN: '#f85149', NEUTRAL: '#8b949e', HIGH: '#388bfd', LOW: '#8b949e', NORMAL: '#8b949e' }
+  let html = ''
+  for (const [key, s] of Object.entries(signals || {})) {
+    const color = COLOR_MAP[s.signal] || '#8b949e'
+    html += `<div class="signal-row">
+      <div class="signal-name">${SIGNAL_NAMES[key] || key} <span class="signal-weight">(${s.weight}%)</span></div>
+      <div class="signal-right">
+        <span class="signal-val">${s.value}</span>
+        <span class="signal-badge" style="color:${color};background:${color}22">${s.signal}</span>
+      </div>
+    </div>`
+  }
+  document.getElementById('signals-list').innerHTML = html
+
+  // Score bar
+  const pct = Math.max(0, Math.min(100, (score + 1) * 50))
+  const scoreColor = score > 0.15 ? '#3fb950' : score < -0.15 ? '#f85149' : '#f0c040'
+  const scoreSign = score >= 0 ? '+' : ''
+  document.getElementById('score-label').textContent = `ציון (${scoreSign}${score})`
+  const fill = document.getElementById('score-fill')
+  fill.style.background = scoreColor
+  if (score >= 0) {
+    fill.style.left = '50%'
+    fill.style.width = `${score * 50}%`
+  } else {
+    fill.style.left = `${pct}%`
+    fill.style.width = `${-score * 50}%`
+  }
+
+  if (reasoning) document.getElementById('reasoning').textContent = reasoning
+}
+
+// ---- Price badge ----
+function renderPriceBadge(price) {
+  if (!price) return
+  const badge = document.getElementById('price-badge')
+  badge.textContent = `BTC/USDT $${Number(price).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+}
+
+// ---- Main fetch ----
+async function fetchData() {
+  try {
+    const resp = await fetch(`${API_BASE}/api/data`)
+    if (!resp.ok) throw new Error(`שגיאת שרת ${resp.status}`)
+    const data = await resp.json()
+    if (data.error) throw new Error(data.error)
+    appData = data
+
+    document.getElementById('error-banner').style.display = 'none'
+    document.getElementById('loading').style.display = 'none'
+    document.getElementById('main-content').style.display = 'block'
+
+    const strikeFromMarket = renderMarket(data.market, data.current_price)
+    const strikePrice = strikeFromMarket
+      || (data.candles?.length ? data.candles[data.candles.length - 1]?.open : null)
+
+    updateChart(data.candles || [], data.current_price, strikePrice)
+    renderPriceBadge(data.current_price)
+    renderAdvice(data.advice)
+
+    document.getElementById('last-update').textContent =
+      `עדכון אחרון: ${new Date().toLocaleTimeString('he-IL')}`
+
+    startCountdown()
+  } catch (e) {
+    const banner = document.getElementById('error-banner')
+    banner.style.display = 'block'
+    banner.textContent = `שגיאה: ${e.message} — האם השרת פועל על port 8000?`
+    document.getElementById('loading').style.display = 'none'
+  }
+}
+
+// ---- Boot ----
+initChart()
+fetchData()
+setInterval(fetchData, REFRESH_INTERVAL)
+</script>
+</body>
+</html>

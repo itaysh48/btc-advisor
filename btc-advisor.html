@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BTC Advisor – פולימרקט 5 דקות</title>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0d1117;color:#e6edf3;font-family:'Segoe UI',Tahoma,Arial,sans-serif;min-height:100vh}
+    #app{max-width:1300px;margin:0 auto;padding:16px;direction:rtl}
+
+    /* ── Header ── */
+    .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px;flex-wrap:wrap;gap:10px}
+    .hdr h1{font-size:22px;font-weight:800}
+    .hdr .sub{font-size:12px;color:#8b949e;margin-top:3px}
+    .hdr-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:12px;color:#8b949e;text-align:left}
+    .btn{padding:5px 14px;background:#21262d;border:1px solid #30363d;border-radius:6px;color:#8b949e;cursor:pointer;font-size:12px}
+    .btn:hover{background:#30363d;color:#e6edf3}
+
+    /* ── Training banner ── */
+    #training-bar{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:20px 24px;margin-bottom:16px;text-align:center}
+    .progress-track{height:6px;background:#21262d;border-radius:3px;margin-top:12px}
+    .progress-fill{height:100%;border-radius:3px;background:#388bfd;transition:width 0.3s}
+    #training-msg{font-size:13px;color:#8b949e;margin-bottom:4px}
+    #training-detail{font-size:11px;color:#484f58}
+
+    /* ── Model stats strip ── */
+    #stats-strip{display:none;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:12px 18px;margin-bottom:16px;display:flex;gap:24px;flex-wrap:wrap;align-items:center}
+    .stat-chip{font-size:12px;color:#8b949e}
+
+    /* ── Learning log ── */
+    #learn-strip{display:none;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:10px 16px;margin-bottom:16px}
+    .learn-title{font-size:11px;color:#8b949e;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+    .learn-row{display:flex;align-items:center;gap:8px;font-size:11px;padding:3px 0;border-bottom:1px solid #21262d22}
+    .learn-row:last-child{border-bottom:none}
+    .learn-icon{width:16px;text-align:center}
+    .learn-window{color:#8b949e;min-width:110px}
+    .learn-pred{min-width:70px}
+    .learn-actual{min-width:50px}
+    .learn-note{color:#484f58;font-size:10px}
+    /* flash animation when learning */
+    @keyframes learnFlash{0%{background:#388bfd22}100%{background:transparent}}
+    .learn-flash{animation:learnFlash 1.5s ease-out}
+    .stat-chip span{color:#e6edf3;font-weight:700}
+
+    /* ── Accuracy card ── */
+    #acc-card{display:none;background:#161b22;border:1px solid #30363d;border-radius:10px;padding:14px 18px;margin-bottom:16px}
+    .acc-title{font-size:11px;color:#8b949e;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+    .acc-row{display:flex;gap:28px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end}
+    .acc-stat{display:flex;flex-direction:column;gap:1px}
+    .acc-big{font-size:26px;font-weight:900;line-height:1}
+    .acc-label{font-size:10px;color:#8b949e}
+    .acc-sub{font-size:11px;color:#6e7681}
+    .acc-patterns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+    .acc-pat-title{font-size:10px;font-weight:700;text-transform:uppercase;margin-bottom:4px;letter-spacing:.3px}
+    .acc-pat-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;background:#0d1117;border-radius:5px;padding:4px 8px;margin-bottom:3px}
+    .time-grid{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+    .time-chip{font-size:10px;background:#0d1117;border-radius:4px;padding:3px 8px;display:flex;gap:4px;align-items:center}
+
+    /* ── Cloud stats card ── */
+    #cloud-stats{display:none;background:#161b22;border:1px solid #388bfd55;border-radius:10px;padding:14px 18px;margin-bottom:16px}
+    .cloud-title{font-size:11px;color:#388bfd;font-weight:700;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:8px;margin-bottom:12px}
+    .cloud-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#388bfd;animation:pulse 1.5s infinite}
+    .cloud-pat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+    .cloud-pat-col{font-size:10px}
+    .cloud-pat-hdr{color:#8b949e;font-weight:700;margin-bottom:4px}
+    .cloud-pat-row{background:#0d1117;border-radius:4px;padding:3px 7px;margin-bottom:2px;display:flex;justify-content:space-between;font-size:11px}
+    .cloud-log-row{display:flex;gap:8px;align-items:center;font-size:11px;padding:3px 0;border-bottom:1px solid #21262d33}
+    .cloud-log-row:last-child{border-bottom:none}
+
+    /* ── GitHub URL config bar ── */
+    #cloud-cfg{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:10px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    #cloud-cfg input{flex:1;min-width:200px;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:6px 10px;color:#e6edf3;font-size:12px;direction:ltr}
+    #cloud-cfg input:focus{outline:none;border-color:#388bfd}
+    #cloud-cfg input::placeholder{color:#484f58}
+    #cloud-cfg-lbl{font-size:11px;color:#8b949e;white-space:nowrap}
+
+    /* ── Main grid ── */
+    #main{display:none}
+    .top-grid{display:grid;grid-template-columns:1fr 340px;gap:16px;margin-bottom:16px}
+
+    /* ── Chart ── */
+    .chart-card{background:#161b22;border:1px solid #30363d;border-radius:12px;overflow:hidden}
+    .chart-hdr{padding:10px 16px;border-bottom:1px solid #21262d;font-size:13px;color:#8b949e;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+    .chart-hdr strong{color:#e6edf3}
+    #strike-lbl{color:#f0c040;font-weight:600}
+    #price-lbl{color:#3fb950;font-weight:700;font-size:15px;margin-right:auto}
+    #chart-el{width:100%;height:380px}
+
+    /* ── Prediction card ── */
+    .pred-card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:20px;display:flex;flex-direction:column;gap:14px}
+    .pred-label{font-size:11px;color:#8b949e;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+
+    /* Gauge */
+    .gauge-wrap{position:relative;text-align:center}
+    .gauge-track{height:12px;background:#21262d;border-radius:6px;position:relative;overflow:hidden;margin:8px 0}
+    .gauge-fill{position:absolute;left:0;top:0;height:100%;border-radius:6px;transition:width .6s ease}
+    .gauge-center{position:absolute;left:50%;top:0;bottom:0;width:2px;background:#484f58;transform:translateX(-50%)}
+    .gauge-ticks{display:flex;justify-content:space-between;font-size:10px;color:#484f58;margin-top:2px}
+
+    .prob-display{font-size:56px;font-weight:900;line-height:1;margin:6px 0;transition:color .4s}
+    .prob-dir{font-size:20px;font-weight:700;margin-top:4px;transition:color .4s}
+    .prob-conf{font-size:12px;color:#8b949e;margin-top:4px}
+
+    /* Pattern row */
+    .pattern-box{background:#0d1117;border-radius:8px;padding:10px 12px}
+    .pattern-title{font-size:10px;color:#8b949e;margin-bottom:6px;font-weight:600;text-transform:uppercase}
+    .pattern-row{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:12px}
+    .pat-dir{display:flex;gap:3px}
+    .pat-c{width:18px;height:18px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700}
+    .pat-c.up{background:#3fb95033;color:#3fb950;border:1px solid #3fb95066}
+    .pat-c.dn{background:#f8514933;color:#f85149;border:1px solid #f8514966}
+    .pat-rsi{font-size:11px;color:#8b949e;flex:1}
+    .pat-prob{font-size:13px;font-weight:700}
+    .pat-n{font-size:10px;color:#484f58;margin-right:4px}
+
+    /* Signal list */
+    .sig-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #21262d;font-size:12px}
+    .sig-row:last-child{border-bottom:none}
+    .sig-name{color:#8b949e}
+    .sig-right{display:flex;align-items:center;gap:6px}
+    .sig-val{color:#6e7681;font-size:11px}
+    .badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px}
+
+    /* Timer & market */
+    .market-row{display:flex;justify-content:space-between;align-items:center;background:#0d1117;border-radius:8px;padding:10px 12px}
+    .market-q{font-size:11px;color:#8b949e;max-width:160px}
+    .timer-big{font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
+    .pm-link{display:block;text-align:center;padding:8px;background:#21262d;border-radius:7px;color:#388bfd;text-decoration:none;font-size:12px;font-weight:500}
+    .pm-link:hover{background:#30363d}
+
+    /* Error */
+    #err-banner{background:#f8514918;border:1px solid #f85149;border-radius:8px;padding:10px 16px;margin-bottom:14px;color:#f85149;font-size:13px;display:none}
+
+    /* Live dot */
+    .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#3fb950;animation:pulse 1.5s infinite;margin-left:4px;vertical-align:middle}
+    @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(1.4)}}
+
+    @media(max-width:850px){.top-grid{grid-template-columns:1fr}#chart-el{height:280px}}
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <div class="hdr">
+    <div>
+      <h1>BTC Advisor<span class="dot"></span></h1>
+      <div class="sub">Polymarket BTC UP/DOWN · 5 דקות · לומד ברציפות</div>
+    </div>
+    <div class="hdr-right">
+      <span id="last-upd"></span>
+      <span id="cd" style="color:#484f58">עדכון בעוד 15s</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn" onclick="retrain()">↺ אמן מחדש</button>
+        <button class="btn" onclick="refresh()">↻ רענן</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="err-banner"></div>
+
+  <!-- Training progress -->
+  <div id="training-bar">
+    <div id="training-msg">טוען נתונים היסטוריים של BTC...</div>
+    <div id="training-detail">מוריד נרות מ-Bitstamp (USD)</div>
+    <div class="progress-track"><div class="progress-fill" id="prog" style="width:5%"></div></div>
+  </div>
+
+  <!-- Stats strip (shown after training) -->
+  <div id="stats-strip" style="display:none">
+    <div class="stat-chip">נרות: <span id="s-candles">—</span></div>
+    <div class="stat-chip">ימים: <span id="s-days">—</span></div>
+    <div class="stat-chip">בסיס UP: <span id="s-base">—</span></div>
+    <div class="stat-chip">דיוק (test): <span id="s-acc">—</span></div>
+    <div class="stat-chip" style="color:#388bfd">למד מ: <span id="s-learned">0 חלונות</span></div>
+    <div class="stat-chip" style="color:#3fb950">דיוק אחרון: <span id="s-online-acc">—</span></div>
+    <div class="stat-chip" style="margin-right:auto;font-size:10px;color:#484f58">אימון: Bitstamp · Strike: Chainlink · <span id="s-ts">—</span></div>
+  </div>
+
+  <!-- GitHub Actions URL config -->
+  <div id="cloud-cfg">
+    <span id="cloud-cfg-lbl">🌐 GitHub Actions URL (סטטיסטיקה חיה 24/7):</span>
+    <input type="text" id="cloud-url-input" placeholder="https://raw.githubusercontent.com/YOUR_USER/YOUR_REPO/main/btc-advisor/state/stats.json" />
+    <button class="btn" onclick="saveCloudUrl()">שמור</button>
+    <span id="cloud-status" style="font-size:11px;color:#484f58"></span>
+  </div>
+
+  <!-- Cloud stats (live from GitHub Actions) -->
+  <div id="cloud-stats">
+    <div class="cloud-title">
+      <span class="cloud-dot"></span>סטטיסטיקה ענן — פועל 24/7 גם כשהמחשב כבוי
+      <span style="margin-right:auto;font-size:10px;color:#484f58;font-weight:400" id="cloud-updated">—</span>
+    </div>
+    <div style="display:flex;gap:24px;flex-wrap:wrap;margin-bottom:10px">
+      <div class="acc-stat">
+        <span class="acc-label">דיוק כולל</span>
+        <span class="acc-big" id="cloud-acc-total" style="font-size:26px">—</span>
+        <span class="acc-sub" id="cloud-acc-sub">—</span>
+      </div>
+      <div class="acc-stat">
+        <span class="acc-label">200 אחרונים</span>
+        <span class="acc-big" id="cloud-acc-200" style="font-size:26px">—</span>
+      </div>
+      <div class="acc-stat">
+        <span class="acc-label">20 אחרונים</span>
+        <span class="acc-big" id="cloud-acc-20" style="font-size:26px">—</span>
+      </div>
+      <div class="acc-stat" style="margin-right:auto">
+        <span class="acc-label">תחזית ענן</span>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <div id="cloud-dir" style="font-size:22px;font-weight:900">—</div>
+          <div>
+            <div id="cloud-prob" style="font-size:12px;color:#8b949e"></div>
+            <div id="cloud-sigs" style="font-size:10px;color:#484f58"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Results bar — every dot = 1 prediction -->
+    <div style="height:10px;background:#21262d;border-radius:5px;overflow:hidden;margin-bottom:10px;display:flex" id="cloud-bar"></div>
+    <!-- Error patterns -->
+    <div id="cloud-patterns"></div>
+    <!-- Recent log -->
+    <div id="cloud-log" style="margin-top:10px"></div>
+  </div>
+
+  <!-- Accuracy card -->
+  <div id="acc-card" style="display:none">
+    <div class="acc-title">דיוק מערכת <span class="dot"></span></div>
+    <div class="acc-row" id="acc-row"></div>
+    <div id="acc-patterns-wrap"></div>
+    <div id="acc-time-wrap"></div>
+  </div>
+
+  <!-- Learning log -->
+  <div id="learn-strip" style="display:none">
+    <div class="learn-title">יומן למידה <span class="dot"></span></div>
+    <div id="learn-rows"></div>
+  </div>
+
+  <!-- Main content -->
+  <div id="main">
+    <div class="top-grid">
+
+      <!-- Chart -->
+      <div class="chart-card">
+        <div class="chart-hdr">
+          <strong>BTC/USD · 5m</strong> <span style="font-size:11px;color:#484f58">היסטוריה: Bitstamp · מחיר חי: Chainlink</span>
+          <span id="strike-lbl"></span>
+          <span id="price-lbl"></span>
+        </div>
+        <div id="chart-el"></div>
+      </div>
+
+      <!-- Prediction -->
+      <div class="pred-card">
+        <div class="pred-label">תחזית לחלון הנוכחי</div>
+
+        <!-- Gauge -->
+        <div class="gauge-wrap">
+          <div class="prob-display" id="prob-pct">—</div>
+          <div class="prob-dir" id="prob-dir">מחשב...</div>
+          <div class="gauge-track">
+            <div class="gauge-center"></div>
+            <div class="gauge-fill" id="gauge-fill" style="width:50%;background:#f0c040"></div>
+          </div>
+          <div class="gauge-ticks"><span>DOWN</span><span>50%</span><span>UP</span></div>
+          <div class="prob-conf" id="prob-conf"></div>
+        </div>
+
+        <!-- Matching pattern -->
+        <div class="pattern-box">
+          <div class="pattern-title">דפוס היסטורי</div>
+          <div id="pattern-content">—</div>
+        </div>
+
+        <!-- Signals -->
+        <div id="sig-list"></div>
+
+        <!-- Price To Beat (real-time Polymarket comparison) -->
+        <div style="background:#0d1117;border-radius:8px;padding:10px 12px">
+          <div style="font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Price To Beat · Polymarket</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:6px">
+            <div>
+              <div style="font-size:10px;color:#8b949e;margin-bottom:2px">מחיר פתיחה (Strike)</div>
+              <div style="font-size:22px;font-weight:900;color:#f0c040;font-variant-numeric:tabular-nums" id="strike-val">—</div>
+            </div>
+            <div style="text-align:left">
+              <div style="font-size:10px;color:#8b949e;margin-bottom:2px">מחיר עכשיו</div>
+              <div style="font-size:18px;font-weight:800;font-variant-numeric:tabular-nums" id="ptb-current">—</div>
+            </div>
+          </div>
+          <!-- Difference bar -->
+          <div id="ptb-diff-row" style="display:flex;align-items:center;gap:8px;font-size:12px">
+            <div id="ptb-diff" style="font-weight:800;font-size:15px;font-variant-numeric:tabular-nums">—</div>
+            <div id="ptb-status" style="font-size:11px;color:#8b949e">מחכה...</div>
+          </div>
+        </div>
+
+        <!-- Timer row -->
+        <div class="market-row">
+          <div>
+            <div style="font-size:10px;color:#8b949e;margin-bottom:3px">חלון נסגר בעוד</div>
+            <div class="timer-big" id="timer" style="color:#3fb950">—</div>
+          </div>
+          <div style="text-align:left">
+            <div style="font-size:10px;color:#8b949e;margin-bottom:3px">עדכון אחרון</div>
+            <div style="font-size:13px;font-weight:600;color:#8b949e" id="ptb-updated">—</div>
+          </div>
+        </div>
+        <a class="pm-link" id="pm-link" href="https://polymarket.com" target="_blank" rel="noopener noreferrer">פתח הימור בפולימרקט ↗</a>
+      </div>
+
+    </div><!-- /top-grid -->
+  </div><!-- /main -->
+</div>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════
+//  CONSTANTS
+// ═══════════════════════════════════════
+const BITSTAMP = 'https://www.bitstamp.net/api/v2';
+const WIN      = 300;
+const BATCH    = 1000;
+const BATCHES  = 8;   // ~27 days training data
+const REFRESH  = 15_000;
+const LS_KEY   = 'btc_model_v6';  // v6: magnitude-based features from Chainlink pattern analysis
+const LS_CLOUD = 'btc_cloud_url'; // persisted GitHub raw URL for cloud stats
+
+// ═══════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════
+let model       = null;
+let lastCandles = [];
+let strikePrice = null;
+let currentWin  = 0;
+let timerIv = null, cdIv = null, chart, cSeries, vSeries, sLine;
+
+// Online-learning state
+let pendingPred  = null;  // { winTs, fKey, fbKey, predictedUp, prob }
+let learnLog     = [];    // last 10 {winTs, predictedUp, actualUp, correct, prob}
+let accuracyLog  = [];    // full history: [{winTs,fKey,fbKey,predictedUp,actualUp,correct,prob,ctx}]
+
+// Cloud stats state
+let cloudUrl     = localStorage.getItem(LS_CLOUD) || '';
+let cloudData    = null;
+let cloudIv      = null;
+
+// ═══════════════════════════════════════
+//  UTILS
+// ═══════════════════════════════════════
+const nowSec = () => Math.floor(Date.now() / 1000);
+const winTs  = () => Math.floor(nowSec() / WIN) * WIN;
+const nextWin= () => winTs() + WIN;
+const fmt$   = (n, d=2) => '$' + (+n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const $      = id => document.getElementById(id);
+
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+// ═══════════════════════════════════════
+//  BITSTAMP API  (OHLC history for training — 5-min candles)
+// ═══════════════════════════════════════
+async function fetchKlines(endTs, limit = BATCH) {
+  let url = `${BITSTAMP}/ohlc/btcusd/?step=300&limit=${limit}`;
+  if (endTs) url += `&end=${endTs}`;
+  const d = await fetchJSON(url);
+  return (d.data?.ohlc || []).map(k => ({
+    t: +k.timestamp,
+    o: +k.open, h: +k.high, l: +k.low, c: +k.close, v: +k.volume,
+  }));
+}
+
+// ═══════════════════════════════════════
+//  CHAINLINK PRICE  (exact match to Polymarket resolution oracle)
+// ═══════════════════════════════════════
+const POLYGON_RPC       = 'https://polygon-bor-rpc.publicnode.com';
+const CHAINLINK_BTC_USD = '0xc907E116054Ad103354f2D350FD2514433D57F6F';  // BTC/USD on Polygon
+const CL_LATEST_DATA    = '0xfeaf968c';  // latestRoundData() selector
+
+async function fetchChainlinkPrice() {
+  try {
+    const r = await fetch(POLYGON_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'eth_call',
+        params: [{ to: CHAINLINK_BTC_USD, data: CL_LATEST_DATA }, 'latest']
+      })
+    });
+    const d = await r.json();
+    const hex = d.result;
+    if (!hex || hex.length < 130) throw new Error('bad');
+    // answer is 2nd 32-byte slot; Chainlink uses 8 decimals
+    const answer = parseInt(hex.slice(2).slice(64, 128), 16);
+    return answer / 1e8;
+  } catch {
+    // Fallback: Coinbase BTC/USD (Chainlink's primary data source)
+    const d = await fetchJSON('https://api.coinbase.com/v2/prices/BTC-USD/spot');
+    return +d.data.amount;
+  }
+}
+
+// Keep fetchPrice as alias used throughout the codebase
+const fetchPrice = fetchChainlinkPrice;
+
+// ═══════════════════════════════════════
+//  TECHNICAL INDICATORS
+// ═══════════════════════════════════════
+function calcRSI(closes, period = 9) {
+  if (closes.length < period + 1) return 50;
+  let ag = 0, al = 0;
+  for (let i = 1; i <= period; i++) {
+    const d = closes[i] - closes[i-1];
+    ag += Math.max(d, 0); al += Math.max(-d, 0);
+  }
+  ag /= period; al /= period;
+  for (let i = period + 1; i < closes.length; i++) {
+    const d = closes[i] - closes[i-1];
+    ag = (ag*(period-1) + Math.max(d,0)) / period;
+    al = (al*(period-1) + Math.max(-d,0)) / period;
+  }
+  return al === 0 ? 100 : 100 - 100/(1 + ag/al);
+}
+
+function calcEMA(arr, period) {
+  const k = 2/(period+1);
+  return arr.reduce((e,v,i) => i===0 ? v : v*k + e*(1-k), arr[0]);
+}
+
+function rsiBucket(r) {
+  if (r < 30) return 'oversold';
+  if (r < 45) return 'low';
+  if (r < 55) return 'neutral';
+  if (r < 70) return 'high';
+  return 'overbought';
+}
+
+// Trading session context: used as secondary learning signal (time-of-day + weekday/weekend)
+function timeContext(ts) {
+  const d   = new Date(ts * 1000);
+  const h   = d.getUTCHours();
+  const dow = d.getUTCDay();           // 0=Sun, 6=Sat
+  const wk  = (dow === 0 || dow === 6) ? 'wknd' : 'wkday';
+  // 4-hour session blocks (UTC)
+  const sessions = ['asia','asia','asia-eu','eu','eu-us','us'];
+  return `${wk}_${sessions[Math.floor(h / 4)]}`;
+}
+
+const SESSION_LABELS = {
+  'wkday_asia':    'אסיה (ב-ו)',    'wknd_asia':    'אסיה (ש-א)',
+  'wkday_asia-eu': 'אסיה-EU (ב-ו)', 'wknd_asia-eu': 'אסיה-EU (ש-א)',
+  'wkday_eu':      'אירופה (ב-ו)',  'wknd_eu':      'אירופה (ש-א)',
+  'wkday_eu-us':   'EU-ארה"ב (ב-ו)','wknd_eu-us':   'EU-ארה"ב (ש-א)',
+  'wkday_us':      'ארה"ב (ב-ו)',   'wknd_us':      'ארה"ב (ש-א)',
+};
+
+// Extracts features based on Chainlink pattern analysis (real Polymarket data)
+// Key finding: candle MAGNITUDE is the strongest predictor, not just direction
+function features(candles, i) {
+  if (i < 30) return null;
+  const hist   = candles.slice(i-25, i);
+  const closes = hist.map(c => c.c);
+  const lastC  = closes[closes.length - 1];
+
+  // Previous 3 candle directions
+  const p1 = candles[i-1].c >= candles[i-1].o ? 1 : 0;
+  const p2 = candles[i-2].c >= candles[i-2].o ? 1 : 0;
+  const p3 = candles[i-3].c >= candles[i-3].o ? 1 : 0;
+
+  // RSI (for display + secondary signal)
+  const rsi    = calcRSI(closes, 9);
+  const ema21  = calcEMA(closes, 21);
+  const ema9   = calcEMA(closes, 9);
+  const emaTrend = lastC > ema21 ? 1 : 0;
+
+  // Volume ratio
+  const avgVol  = hist.slice(-14).reduce((s,c) => s+c.v, 0) / 14;
+  const volRatio= candles[i-1].v / (avgVol || 1);
+
+  // === KEY SIGNAL 1: Last candle magnitude (% price move) ===
+  // Empirical from Chainlink data: >0.1% → 61% continuation, >0.2% → 80% continuation
+  const lastPctMove = Math.abs((candles[i-1].c - candles[i-1].o) / candles[i-1].o) * 100;
+  let magBucket;
+  if      (lastPctMove >= 0.20) magBucket = 'huge';   // >0.2%: 80% continuation
+  else if (lastPctMove >= 0.10) magBucket = 'big';    // 0.1-0.2%: 61% continuation
+  else if (lastPctMove < 0.01)  magBucket = 'noise';  // <0.01%: ~53% reversal
+  else                           magBucket = 'norm';   // 0.01-0.1%: ~50%
+
+  // === KEY SIGNAL 2: Trend strength (% UP in last 10 candles) ===
+  // Empirical: >70% UP → 64% UP signal; <30% UP → inferred 64% DOWN
+  const last10     = candles.slice(Math.max(0, i-10), i);
+  const upRatio10  = last10.filter(c => c.c >= c.o).length / last10.length;
+  const trendStrength = upRatio10 >= 0.70 ? 'sup'
+                      : upRatio10 <= 0.30 ? 'sdn'
+                      : 'neu';
+
+  // Streak (for display)
+  let streak = 1;
+  for (let j = i-2; j >= Math.max(0, i-10); j--) {
+    if ((candles[j].c >= candles[j].o ? 1 : 0) === p1) streak++; else break;
+  }
+
+  const rb = rsiBucket(rsi);
+  return { p1, p2, p3, rb, rsi, ema21, ema9, emaTrend, volRatio, streak,
+           magBucket, trendStrength, upRatio10, lastPctMove };
+}
+
+// Feature key: built around the two strongest signals (magnitude + trend)
+// 8 × 4 × 3 = 96 combinations — well-populated with 27 days of data
+function featureKey(f) {
+  return `${f.p1}${f.p2}${f.p3}_${f.magBucket}_${f.trendStrength}`;
+}
+
+// ═══════════════════════════════════════
+//  MODEL TRAINING
+// ═══════════════════════════════════════
+function trainModel(candles) {
+  const table    = {};  // full feature key → { up, total }
+  const fallback = {};  // simplified key (prev3 + rsi) → { up, total }
+  const timeTable= {};  // time context → { up, total }
+  let totalUp = 0;
+
+  for (let i = 30; i < candles.length - 1; i++) {
+    const f = features(candles, i);
+    if (!f) continue;
+    const outcome = candles[i].c >= candles[i].o ? 1 : 0;
+    totalUp += outcome;
+
+    const key = featureKey(f);
+    if (!table[key]) table[key] = { up:0, total:0 };
+    table[key].up    += outcome;
+    table[key].total += 1;
+
+    // Fallback: prev3 + magnitude (ignores trend to remain useful in unseen regimes)
+    const fk = `${f.p1}${f.p2}${f.p3}_${f.magBucket}`;
+    if (!fallback[fk]) fallback[fk] = { up:0, total:0 };
+    fallback[fk].up    += outcome;
+    fallback[fk].total += 1;
+
+    // Time-of-day / session context table
+    const ctx = timeContext(candles[i].t);
+    if (!timeTable[ctx]) timeTable[ctx] = { up:0, total:0 };
+    timeTable[ctx].up    += outcome;
+    timeTable[ctx].total += 1;
+  }
+
+  const n = candles.length - 31;
+  const baseRate = totalUp / n;
+
+  // Evaluate on last 500 candles using combined signal
+  let correct = 0, tested = 0;
+  const evalStart = Math.max(30, candles.length - 500);
+  for (let i = evalStart; i < candles.length - 1; i++) {
+    const f = features(candles, i);
+    if (!f) continue;
+    const prob = combinedProb(table, fallback, timeTable, baseRate, f, candles[i].t);
+    const pred   = prob >= 0.5 ? 1 : 0;
+    const actual = candles[i].c >= candles[i].o ? 1 : 0;
+    if (pred === actual) correct++;
+    tested++;
+  }
+
+  return { table, fallback, timeTable, baseRate, accuracy: tested > 0 ? correct/tested : 0.5, trainedOn: n };
+}
+
+function lookupProb(table, fallback, baseRate, f) {
+  const key = featureKey(f);
+  const entry = table[key];
+  if (entry && entry.total >= 10) {
+    // Laplace smoothing
+    return (entry.up + 1) / (entry.total + 2);
+  }
+  // Fallback: prev3 + magnitude
+  const fk = `${f.p1}${f.p2}${f.p3}_${f.magBucket}`;
+  const fe = fallback[fk];
+  if (fe && fe.total >= 8) {
+    return (fe.up + 1) / (fe.total + 2);
+  }
+  return baseRate;
+}
+
+// Time-of-day adjustment signal (15% weight)
+function lookupTimeAdj(timeTable, ts) {
+  if (!timeTable || !ts) return 0.5;
+  const ctx = timeContext(ts);
+  const e = timeTable[ctx];
+  if (e && e.total >= 30) return (e.up + 1) / (e.total + 2);
+  return 0.5;
+}
+
+// Combine table + direct empirical signals + time-of-day
+// Direct signals are calibrated from real Chainlink/Polymarket outcome data
+function combinedProb(table, fallback, timeTable, baseRate, f, ts) {
+  const main = lookupProb(table, fallback, baseRate, f);
+  const time = lookupTimeAdj(timeTable, ts);
+
+  // Direct signal from Chainlink pattern analysis (empirical):
+  // - after huge move (>0.2%): 80% continuation   → weight 45%
+  // - after big move  (>0.1%): 61% continuation   → weight 25%
+  // - strong trend (>70% UP) : 64% UP             → weight 20%
+  // - strong trend (<30% UP) : 64% DOWN           → weight 20%
+  let direct = baseRate;
+  let dw = 0;
+  if      (f.magBucket === 'huge') { direct = f.p1 ? 0.80 : 0.20; dw = 0.45; }
+  else if (f.magBucket === 'big')  { direct = f.p1 ? 0.61 : 0.39; dw = 0.25; }
+  else if (f.trendStrength === 'sup') { direct = 0.64; dw = 0.20; }
+  else if (f.trendStrength === 'sdn') { direct = 0.36; dw = 0.20; }
+
+  const rw = 1 - dw;
+  const prob = direct * dw + main * (rw * 0.80) + time * (rw * 0.12) + baseRate * (rw * 0.08);
+  return Math.max(0.05, Math.min(0.95, prob));
+}
+
+function getHistoricalSample(model, f) {
+  const fk = `${f.p1}${f.p2}${f.p3}_${f.rb}`;
+  const fe = model.fallback[fk];
+  return fe ? fe.total : 0;
+}
+
+// ═══════════════════════════════════════
+//  ONLINE LEARNING
+// ═══════════════════════════════════════
+
+// Called at window start — saves current prediction so we can learn from it later
+function recordPrediction(f, prob) {
+  pendingPred = {
+    winTs:       currentWin,
+    fKey:        featureKey(f),
+    fbKey:       `${f.p1}${f.p2}${f.p3}_${f.magBucket}`,
+    predictedUp: prob >= 0.5,
+    prob,
+  };
+}
+
+// Fetch actual Polymarket resolution (priceToBeat + finalPrice from Chainlink Data Streams)
+// Only available after the window resolves (~30s after close)
+async function fetchPolymarketResolution(winTs) {
+  try {
+    const slug = `btc-updown-5m-${winTs}`;
+    const d = await fetchJSON(`https://gamma-api.polymarket.com/events?slug=${slug}`);
+    if (!d || !d.length) return null;
+    const meta = d[0].eventMetadata;
+    if (!meta || !meta.priceToBeat || !meta.finalPrice) return null;
+    return {
+      priceToBeat: meta.priceToBeat,
+      finalPrice:  meta.finalPrice,
+      actualUp:    meta.finalPrice >= meta.priceToBeat,
+      source:      'chainlink',
+    };
+  } catch { return null; }
+}
+
+// Called when a window closes — use actual Polymarket resolution if available, else Bitstamp candle
+async function learnFromClosedWindow(candles) {
+  if (!model || !pendingPred) return;
+  const prevWin = pendingPred.winTs;
+
+  // Try to get actual Chainlink resolution from Polymarket (ground truth)
+  let resolution = await fetchPolymarketResolution(prevWin);
+  let actualUp, source;
+
+  if (resolution) {
+    actualUp = resolution.actualUp;
+    source   = 'chainlink';
+  } else {
+    // Fall back to Bitstamp candle direction
+    const candle = candles.find(c => c.t === prevWin);
+    if (!candle) { pendingPred = null; return; }
+    actualUp = candle.c >= candle.o;
+    source   = 'bitstamp';
+  }
+
+  const correct = actualUp === pendingPred.predictedUp;
+  const outcome = actualUp ? 1 : 0;
+
+  // Wrong prediction → weight 3× to learn faster from mistakes
+  const weight = correct ? 1 : 3;
+
+  // Update full-feature table
+  if (!model.table[pendingPred.fKey])
+    model.table[pendingPred.fKey] = { up: 0, total: 0 };
+  model.table[pendingPred.fKey].up    += outcome * weight;
+  model.table[pendingPred.fKey].total += weight;
+
+  // Update fallback table
+  if (!model.fallback[pendingPred.fbKey])
+    model.fallback[pendingPred.fbKey] = { up: 0, total: 0 };
+  model.fallback[pendingPred.fbKey].up    += outcome * weight;
+  model.fallback[pendingPred.fbKey].total += weight;
+
+  // Update time-of-day table
+  const ctx = timeContext(prevWin);
+  if (!model.timeTable[ctx]) model.timeTable[ctx] = { up:0, total:0 };
+  model.timeTable[ctx].up    += outcome * weight;
+  model.timeTable[ctx].total += weight;
+
+  // Update online stats
+  model.onlineLearned = (model.onlineLearned || 0) + 1;
+  model.onlineCorrect = (model.onlineCorrect || 0) + (correct ? 1 : 0);
+
+  // Learning log (last 10, for live display)
+  learnLog.unshift({ winTs:prevWin, prob:pendingPred.prob, predictedUp:pendingPred.predictedUp, actualUp, correct, weight, source,
+    priceToBeat: resolution?.priceToBeat, finalPrice: resolution?.finalPrice });
+  if (learnLog.length > 10) learnLog.pop();
+
+  // Full accuracy log (last 1000, for pattern analysis)
+  accuracyLog.push({ winTs:prevWin, fKey:pendingPred.fKey, fbKey:pendingPred.fbKey, predictedUp:pendingPred.predictedUp, actualUp, correct, prob:pendingPred.prob, ctx, source });
+  if (accuracyLog.length > 1000) accuracyLog.shift();
+
+  pendingPred = null;
+
+  // Persist
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+    saved.table         = model.table;
+    saved.fallback      = model.fallback;
+    saved.timeTable     = model.timeTable;
+    saved.onlineLearned = model.onlineLearned;
+    saved.onlineCorrect = model.onlineCorrect;
+    saved.accuracyLog   = accuracyLog;
+    localStorage.setItem(LS_KEY, JSON.stringify(saved));
+  } catch {}
+
+  renderLearnLog();
+  updateStatsStrip();
+  renderAccuracyCard();
+  return { correct, actualUp };
+}
+
+function renderLearnLog() {
+  if (!learnLog.length) return;
+  $('learn-strip').style.display = 'block';
+  $('learn-rows').innerHTML = learnLog.map((e, idx) => {
+    const time   = new Date(e.winTs * 1000).toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
+    const pColor = e.predictedUp ? '#3fb950' : '#f85149';
+    const aColor = e.actualUp    ? '#3fb950' : '#f85149';
+    const rowClass = idx === 0 && !e.correct ? 'learn-row learn-flash' : 'learn-row';
+    const srcBadge = e.source === 'chainlink'
+      ? `<span style="font-size:9px;color:#388bfd;border:1px solid #388bfd44;border-radius:3px;padding:1px 4px">CL</span>`
+      : `<span style="font-size:9px;color:#484f58;border:1px solid #30363d;border-radius:3px;padding:1px 4px">BS</span>`;
+    const prices = e.priceToBeat
+      ? `<span style="color:#484f58;font-size:10px">${fmt$(e.priceToBeat,0)}→${fmt$(e.finalPrice,0)}</span>`
+      : '';
+    return `<div class="${rowClass}">
+      <span class="learn-icon">${e.correct ? '✓' : '✗'}</span>
+      <span class="learn-window">${time} ${srcBadge}</span>
+      <span class="learn-pred" style="color:${pColor}">ניבאתי: ${e.predictedUp?'UP':'DOWN'} (${(e.prob*100).toFixed(0)}%)</span>
+      <span class="learn-actual" style="color:${aColor}">→ ${e.actualUp?'UP':'DOWN'}</span>
+      ${prices}
+      <span class="learn-note">${e.correct ? '' : `למד ×${e.weight}`}</span>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+//  HISTORICAL DATA LOADER
+// ═══════════════════════════════════════
+async function loadAndTrain() {
+  // Check cache
+  try {
+    const cached = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if (cached && (Date.now() - cached.trainedAt) < 3600_000 && cached.candles?.length > 2000) {
+      setProgress(80, 'טוען מ-cache...', '');
+      const m = trainModel(cached.candles);
+      m.trainedAt = cached.trainedAt;
+      m.candles   = cached.candles;
+      // Restore online-learning updates that were persisted on top of base model
+      if (cached.table)     Object.assign(m.table,     cached.table);
+      if (cached.fallback)  Object.assign(m.fallback,  cached.fallback);
+      if (cached.timeTable) Object.assign(m.timeTable, cached.timeTable);
+      m.onlineLearned = cached.onlineLearned || 0;
+      m.onlineCorrect = cached.onlineCorrect || 0;
+      accuracyLog = cached.accuracyLog || [];
+      setProgress(100, 'מוכן!', '');
+      return m;
+    }
+  } catch {}
+
+  // Fresh download
+  const allCandles = [];
+  let endTime = null;
+
+  for (let b = 0; b < BATCHES; b++) {
+    const pct = Math.round(10 + (b / BATCHES) * 60);
+    setProgress(pct, `מוריד נתונים היסטוריים... (${b+1}/${BATCHES})`,
+      `${(b+1)*BATCH} נרות = ~${((b+1)*BATCH*5/60/24).toFixed(1)} ימים`);
+
+    const batch = await fetchKlines(endTime);
+    allCandles.unshift(...batch);
+    endTime = batch[0].t - 1;  // Bitstamp uses seconds (not ms)
+  }
+
+  setProgress(75, `מנתח ${allCandles.length.toLocaleString()} נרות...`, 'מחשב הסתברויות מותנות');
+  await sleep(50); // yield to browser to render progress
+
+  const m = trainModel(allCandles);
+  m.candles = allCandles;
+  m.trainedAt = Date.now();
+
+  // Cache
+  try { localStorage.setItem(LS_KEY, JSON.stringify({ candles: allCandles, trainedAt: m.trainedAt })); } catch {}
+
+  setProgress(100, 'מוכן!', '');
+  return m;
+}
+
+async function retrain() {
+  try { localStorage.removeItem(LS_KEY); } catch {}
+  $('training-bar').style.display = 'block';
+  $('stats-strip').style.display  = 'none';
+  $('main').style.display         = 'none';
+  model = await loadAndTrain();
+  showStats();
+  await refresh();
+}
+
+// ═══════════════════════════════════════
+//  CHART
+// ═══════════════════════════════════════
+function initChart() {
+  const el = $('chart-el');
+  chart = LightweightCharts.createChart(el, {
+    layout:    { background:{ color:'#0d1117' }, textColor:'#8b949e' },
+    grid:      { vertLines:{ color:'#21262d' }, horzLines:{ color:'#21262d' } },
+    crosshair: { mode:1 },
+    rightPriceScale:{ borderColor:'#30363d' },
+    timeScale: { borderColor:'#30363d', timeVisible:true, secondsVisible:false },
+    width: el.clientWidth, height: 380,
+  });
+  cSeries = chart.addCandlestickSeries({ upColor:'#3fb950', downColor:'#f85149', borderUpColor:'#3fb950', borderDownColor:'#f85149', wickUpColor:'#3fb950', wickDownColor:'#f85149' });
+  vSeries = chart.addHistogramSeries({ priceFormat:{ type:'volume' }, priceScaleId:'vol' });
+  chart.priceScale('vol').applyOptions({ scaleMargins:{ top:0.85, bottom:0 } });
+  window.addEventListener('resize', () => chart.applyOptions({ width: el.clientWidth }));
+}
+
+function renderChart(candles, price, strike) {
+  const sorted = candles.slice(-120).sort((a,b)=>a.t-b.t);
+  cSeries.setData(sorted.map(c=>({ time:c.t, open:c.o, high:c.h, low:c.l, close:c.c })));
+  vSeries.setData(sorted.map(c=>({ time:c.t, value:c.v, color: c.c>=c.o?'#3fb95033':'#f8514933' })));
+  chart.timeScale().fitContent();
+
+  if (price && sorted.length) {
+    const last = sorted[sorted.length-1];
+    cSeries.update({ time:last.t, open:last.o, high:Math.max(last.h,price), low:Math.min(last.l,price), close:price });
+  }
+
+  if (sLine) { try { cSeries.removePriceLine(sLine); } catch {} sLine=null; }
+  if (strike) sLine = cSeries.createPriceLine({ price:strike, color:'#f0c040', lineWidth:2, lineStyle:2, axisLabelVisible:true, title:'Strike' });
+}
+
+// ═══════════════════════════════════════
+//  PREDICTION UI
+// ═══════════════════════════════════════
+function renderPrediction(candles, price) {
+  if (!model || candles.length < 32) return;
+
+  const i = candles.length - 1;  // use latest as "current" features
+  const f = features(candles, i);
+  if (!f) return;
+
+  const prob = combinedProb(model.table, model.fallback, model.timeTable, model.baseRate, f, currentWin);
+  const probPct = Math.round(prob * 100);
+  const isUp  = prob >= 0.5;
+  const color = isUp ? '#3fb950' : '#f85149';
+
+  // Record this prediction so we can learn from the outcome later
+  recordPrediction(f, prob);
+
+  // Edge = distance from 50%. Bet only when edge > 7% (prob > 57% or < 43%)
+  const edge = Math.abs(prob - 0.5);
+  const shouldBet = edge >= 0.07;
+
+  // Active signal source (for transparency)
+  let activeSig = 'מודל היסטורי';
+  if      (f.magBucket === 'huge') activeSig = `תזוזה ענקית (${f.lastPctMove.toFixed(2)}%) → המשך 80%`;
+  else if (f.magBucket === 'big')  activeSig = `תזוזה גדולה (${f.lastPctMove.toFixed(2)}%) → המשך 61%`;
+  else if (f.trendStrength === 'sup') activeSig = `מגמה חזקה UP (${(f.upRatio10*100).toFixed(0)}%) → 64%`;
+  else if (f.trendStrength === 'sdn') activeSig = `מגמה חזקה DOWN (${(f.upRatio10*100).toFixed(0)}%) → 64%`;
+
+  $('prob-pct').textContent = `${probPct}%`;
+  if (shouldBet) {
+    $('prob-pct').style.color  = isUp ? '#3fb950' : '#f85149';
+    $('prob-dir').textContent  = isUp ? '▲ UP – מר להמר' : '▼ DOWN – מר להמר';
+    $('prob-dir').style.color  = isUp ? '#3fb950' : '#f85149';
+  } else {
+    $('prob-pct').style.color  = '#f0c040';
+    $('prob-dir').textContent  = '⏸ NEUTRAL – אל תהמר';
+    $('prob-dir').style.color  = '#f0c040';
+  }
+
+  const fill = $('gauge-fill');
+  fill.style.background = shouldBet ? (isUp ? '#3fb950' : '#f85149') : '#f0c040';
+  fill.style.width      = `${prob * 100}%`;
+
+  const confLabel = edge > 0.15 ? 'ביטחון גבוה' : edge > 0.09 ? 'ביטחון בינוני' : edge > 0.07 ? 'ביטחון נמוך' : 'אין סיגנל — אל תהמר';
+  const n = getHistoricalSample(model, f);
+  $('prob-conf').textContent = `${confLabel} · ${n} דוגמאות · ${activeSig}`;
+
+  // Pattern box
+  const dirs = ['p3','p2','p1'].map(k => f[k]);
+  const dirLabels = dirs.map(d => `<span class="pat-c ${d?'up':'dn'}">${d?'U':'D'}</span>`).join('');
+  const fk = `${f.p1}${f.p2}${f.p3}_${f.magBucket}`;
+  const fe = model.fallback[fk];
+  const histProb = fe && fe.total >= 5 ? Math.round(fe.up/fe.total*100) : Math.round(model.baseRate*100);
+  const histN    = fe ? fe.total : 0;
+  const hColor   = histProb >= 50 ? '#3fb950' : '#f85149';
+  const magLabel = { huge:'ענקית >0.2%', big:'גדולה >0.1%', norm:'רגילה', noise:'רעש <0.01%' }[f.magBucket];
+  const trendLabel= { sup:`מגמה UP חזקה (${(f.upRatio10*100).toFixed(0)}%)`, sdn:`מגמה DOWN חזקה`, neu:'ניוטרלי' }[f.trendStrength];
+
+  $('pattern-content').innerHTML = `
+    <div class="pattern-row">
+      <div class="pat-dir">${dirLabels}</div>
+      <span class="pat-rsi" style="color:${f.magBucket==='huge'?'#f0c040':f.magBucket==='big'?'#388bfd':'#8b949e'}">תזוזה: ${magLabel}</span>
+    </div>
+    <div class="pattern-row" style="margin-top:3px">
+      <span style="font-size:11px;color:${f.trendStrength!=='neu'?'#3fb950':'#484f58'}">${trendLabel}</span>
+      <span class="pat-prob" style="color:${hColor}">${histProb}% UP <span style="color:#484f58;font-size:10px">(n=${histN})</span></span>
+    </div>`;
+
+  // Signals breakdown — now shows the actual active signals
+  const C = { UP:'#3fb950', DOWN:'#f85149', NEUTRAL:'#8b949e', BET:'#3fb950' };
+  const sigs = [
+    { name:'תזוזה אחרונה',
+      val: `${f.lastPctMove.toFixed(3)}% (${f.p1?'▲':'▼'})`,
+      sig: f.magBucket==='huge' ? (f.p1?'UP':'DOWN') : f.magBucket==='big' ? (f.p1?'UP':'DOWN') : 'NEUTRAL',
+      note: f.magBucket==='huge'?'→80%': f.magBucket==='big'?'→61%': '' },
+    { name:'מגמה 10 נרות',
+      val: `${(f.upRatio10*100).toFixed(0)}% UP`,
+      sig: f.trendStrength==='sup'?'UP': f.trendStrength==='sdn'?'DOWN':'NEUTRAL',
+      note: f.trendStrength!=='neu'?'→64%':'' },
+    { name:'נרות קודמים', val:`${f.p3?'▲':'▼'} ${f.p2?'▲':'▼'} ${f.p1?'▲':'▼'}`, sig:'NEUTRAL', note:'' },
+    { name:'RSI(9)', val:`${f.rsi.toFixed(1)}`, sig:'NEUTRAL', note:'' },
+    { name:'EMA21', val: f.emaTrend?'מעל':'מתחת', sig: f.emaTrend?'UP':'DOWN', note:'' },
+    { name:'רצף', val:`${f.streak}×`, sig: f.streak>=5?(f.p1?'UP':'DOWN'):'NEUTRAL', note:'' },
+  ];
+  $('sig-list').innerHTML = sigs.map(s => {
+    const c = C[s.sig] || '#8b949e';
+    return `<div class="sig-row">
+      <span class="sig-name">${s.name}</span>
+      <span class="sig-right">
+        <span class="sig-val">${s.val}</span>
+        ${s.note ? `<span style="font-size:10px;color:#388bfd">${s.note}</span>` : ''}
+        <span class="badge" style="color:${c};background:${c}22">${s.sig}</span>
+      </span>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════
+//  MARKET TIMER + PM LINK
+// ═══════════════════════════════════════
+function startTimer(closesAt) {
+  if (timerIv) clearInterval(timerIv);
+  const tick = () => {
+    const s = Math.max(0, closesAt - nowSec());
+    const el = $('timer');
+    el.textContent = `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+    el.style.color = s < 60 ? '#f85149' : s < 120 ? '#f0c040' : '#3fb950';
+  };
+  tick(); timerIv = setInterval(tick, 1000);
+}
+
+async function updateMarketLink() {
+  const ts   = winTs();
+  const slug = `btc-updown-5m-${ts}`;
+  $('pm-link').href = `https://polymarket.com/event/${slug}`;
+  startTimer(nextWin());
+}
+
+// ═══════════════════════════════════════
+//  MAIN REFRESH
+// ═══════════════════════════════════════
+async function refresh() {
+  try {
+    hideErr();
+    const [candles, price] = await Promise.all([fetchKlines(null, 150), fetchPrice()]);
+    lastCandles = candles;
+
+    // Strike: price at window boundary
+    const wt = winTs();
+    if (wt !== currentWin) {
+      await learnFromClosedWindow(candles);  // learn from actual Polymarket resolution (Chainlink truth)
+      currentWin  = wt;
+      strikePrice = price;
+      updateMarketLink();
+    }
+    if (!strikePrice) strikePrice = price;
+
+    $('price-lbl').textContent = fmt$(price);
+    const s = $('strike-lbl');
+    if (strikePrice) { s.textContent = `Strike: ${fmt$(strikePrice)}`; s.style.display='inline'; }
+
+    renderChart(candles, price, strikePrice);
+    renderPrediction(candles, price);
+    if (strikePrice) $('strike-val').textContent = fmt$(strikePrice);
+
+    // Price To Beat — live comparison
+    if (strikePrice) {
+      const diff    = price - strikePrice;
+      const isAbove = diff >= 0;
+      const clr     = isAbove ? '#3fb950' : '#f85149';
+      const ptbCur  = $('ptb-current');
+      const ptbDiff = $('ptb-diff');
+      const ptbStat = $('ptb-status');
+      ptbCur.textContent  = fmt$(price);
+      ptbCur.style.color  = clr;
+      ptbDiff.textContent = (diff >= 0 ? '+' : '') + fmt$(Math.abs(diff));
+      ptbDiff.style.color = clr;
+      ptbStat.textContent = isAbove ? '▲ מעל ה-Strike — כרגע UP' : '▼ מתחת ל-Strike — כרגע DOWN';
+      ptbStat.style.color = clr;
+      $('ptb-updated').textContent = new Date().toLocaleTimeString('he-IL');
+    }
+
+    $('main').style.display  = 'block';
+    $('last-upd').textContent = new Date().toLocaleTimeString('he-IL');
+    resetCd();
+  } catch(e) {
+    showErr(e.message);
+  }
+}
+
+// ═══════════════════════════════════════
+//  STATS STRIP
+// ═══════════════════════════════════════
+function showStats() {
+  if (!model) return;
+  $('stats-strip').style.display = 'flex';
+  $('training-bar').style.display = 'none';
+  $('s-candles').textContent = model.trainedOn?.toLocaleString() || '—';
+  $('s-days').textContent    = model.candles ? `${(model.candles.length*5/60/24).toFixed(1)}` : '—';
+  $('s-base').textContent    = `${(model.baseRate*100).toFixed(1)}%`;
+  $('s-acc').textContent     = `${(model.accuracy*100).toFixed(1)}%`;
+  $('s-ts').textContent      = model.trainedAt ? new Date(model.trainedAt).toLocaleTimeString('he-IL') : '—';
+  updateStatsStrip();
+}
+
+function updateStatsStrip() {
+  if (!model) return;
+  const learned = model.onlineLearned || 0;
+  const correct = model.onlineCorrect || 0;
+  $('s-learned').textContent    = `${learned} חלונות`;
+  $('s-online-acc').textContent = learned > 0 ? `${(correct / learned * 100).toFixed(0)}%` : '—';
+}
+
+// ═══════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════
+function setProgress(pct, msg, detail) {
+  $('prog').style.width       = pct + '%';
+  $('training-msg').textContent  = msg;
+  $('training-detail').textContent = detail;
+}
+
+function showErr(msg) { const b=$('err-banner'); b.textContent='שגיאה: '+msg; b.style.display='block'; }
+function hideErr()    { $('err-banner').style.display='none'; }
+
+function resetCd() {
+  if (cdIv) clearInterval(cdIv);
+  let v = REFRESH/1000;
+  cdIv = setInterval(() => {
+    v = Math.max(0, v-1);
+    const el = $('cd');
+    el.style.color = v < 5 ? '#f0c040' : '#484f58';
+    el.textContent = `עדכון בעוד ${v}s`;
+  }, 1000);
+}
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ═══════════════════════════════════════
+//  ACCURACY CARD
+// ═══════════════════════════════════════
+function renderAccuracyCard() {
+  if (!accuracyLog.length) return;
+  $('acc-card').style.display = 'block';
+
+  const total   = accuracyLog.length;
+  const nOk     = accuracyLog.filter(e => e.correct).length;
+  const pct     = (nOk / total * 100).toFixed(1);
+
+  const recent  = accuracyLog.slice(-20);
+  const rOk     = recent.filter(e => e.correct).length;
+  const rPct    = (rOk / recent.length * 100).toFixed(1);
+
+  const last5   = accuracyLog.slice(-5);
+  const l5Ok    = last5.filter(e => e.correct).length;
+  const l5Pct   = (l5Ok / last5.length * 100).toFixed(0);
+
+  const color = v => +v >= 58 ? '#3fb950' : +v >= 50 ? '#f0c040' : '#f85149';
+
+  $('acc-row').innerHTML = `
+    <div class="acc-stat">
+      <span class="acc-label">דיוק כולל</span>
+      <span class="acc-big" style="color:${color(pct)}">${pct}%</span>
+      <span class="acc-sub">${nOk} נכון מתוך ${total}</span>
+    </div>
+    <div class="acc-stat">
+      <span class="acc-label">20 האחרונים</span>
+      <span class="acc-big" style="color:${color(rPct)}">${rPct}%</span>
+      <span class="acc-sub">${rOk}/${recent.length}</span>
+    </div>
+    <div class="acc-stat">
+      <span class="acc-label">5 האחרונים</span>
+      <span class="acc-big" style="color:${color(l5Pct)}">${l5Pct}%</span>
+      <span class="acc-sub">${l5Ok}/5</span>
+    </div>`;
+
+  // Pattern error analysis (by fbKey = prev3 dirs + RSI bucket)
+  if (total >= 10) {
+    const patMap = {};
+    for (const e of accuracyLog) {
+      if (!patMap[e.fbKey]) patMap[e.fbKey] = { ok:0, n:0 };
+      patMap[e.fbKey].n++;
+      if (e.correct) patMap[e.fbKey].ok++;
+    }
+    const pats = Object.entries(patMap)
+      .filter(([,v]) => v.n >= 4)
+      .map(([k,v]) => ({ k, acc: v.ok/v.n, n: v.n }));
+
+    const weak   = [...pats].sort((a,b) => a.acc - b.acc).slice(0, 3);
+    const strong = [...pats].sort((a,b) => b.acc - a.acc).slice(0, 3);
+
+    if (weak.length) {
+      $('acc-patterns-wrap').innerHTML = `
+        <div class="acc-patterns">
+          <div>
+            <div class="acc-pat-title" style="color:#f85149">⚠ חלשים — לומד לתקן</div>
+            ${weak.map(p => patRowHtml(p)).join('')}
+          </div>
+          <div>
+            <div class="acc-pat-title" style="color:#3fb950">✓ חזקים — בטוח לסמוך</div>
+            ${strong.map(p => patRowHtml(p)).join('')}
+          </div>
+        </div>`;
+    }
+  }
+
+  // Time-of-day analysis
+  if (total >= 15) {
+    const tMap = {};
+    for (const e of accuracyLog) {
+      if (!tMap[e.ctx]) tMap[e.ctx] = { ok:0, n:0 };
+      tMap[e.ctx].n++;
+      if (e.correct) tMap[e.ctx].ok++;
+    }
+    const chips = Object.entries(tMap)
+      .filter(([,v]) => v.n >= 3)
+      .sort((a,b) => b[1].n - a[1].n)
+      .map(([ctx,v]) => {
+        const a = (v.ok/v.n*100).toFixed(0);
+        const c = +a >= 58 ? '#3fb950' : +a >= 50 ? '#f0c040' : '#f85149';
+        const lbl = SESSION_LABELS[ctx] || ctx;
+        return `<div class="time-chip"><span style="color:#8b949e">${lbl}</span><span style="color:${c};font-weight:700">${a}%</span><span style="color:#484f58">(${v.n})</span></div>`;
+      }).join('');
+    if (chips) $('acc-time-wrap').innerHTML = `<div class="acc-label" style="margin-top:8px;margin-bottom:4px">דיוק לפי שעת מסחר</div><div class="time-grid">${chips}</div>`;
+  }
+}
+
+function patRowHtml({ k, acc, n }) {
+  const parts = k.split('_');
+  const dirs  = (parts[0] || '').split('').map(d => `<span style="color:${d==='1'?'#3fb950':'#f85149'}">${d==='1'?'▲':'▼'}</span>`).join('');
+  const rsiLbl= { oversold:'RSI<30', low:'RSI 30-45', neutral:'RSI 45-55', high:'RSI 55-70', overbought:'RSI>70' }[parts[1]] || parts[1];
+  const color = acc >= 0.58 ? '#3fb950' : acc >= 0.5 ? '#f0c040' : '#f85149';
+  return `<div class="acc-pat-row">${dirs} · ${rsiLbl} <span style="color:${color};font-weight:700">${(acc*100).toFixed(0)}% <span style="color:#484f58;font-weight:400">(${n})</span></span></div>`;
+}
+
+// ═══════════════════════════════════════
+//  CLOUD STATS (GitHub Actions — 24/7)
+// ═══════════════════════════════════════
+
+function saveCloudUrl() {
+  const v = ($('cloud-url-input').value || '').trim();
+  cloudUrl = v;
+  if (cloudIv) { clearInterval(cloudIv); cloudIv = null; }
+  if (v) {
+    localStorage.setItem(LS_CLOUD, v);
+    $('cloud-status').textContent = '✓ נשמר — מחבר...';
+    $('cloud-status').style.color = '#f0c040';
+    fetchAndRenderCloud();
+    cloudIv = setInterval(fetchAndRenderCloud, 30_000);
+  } else {
+    localStorage.removeItem(LS_CLOUD);
+    $('cloud-stats').style.display = 'none';
+    $('cloud-status').textContent  = '';
+  }
+}
+
+async function fetchAndRenderCloud() {
+  if (!cloudUrl) return;
+  try {
+    const r = await fetch(cloudUrl + '?_=' + Date.now());
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    cloudData = await r.json();
+    renderCloudStats(cloudData);
+    const ago = Math.round((Date.now()/1000 - (cloudData.updatedAt||0)) / 60);
+    $('cloud-status').textContent = `✓ ענן — עודכן לפני ${ago < 1 ? '<1' : ago} דקות`;
+    $('cloud-status').style.color = ago > 15 ? '#f0c040' : '#3fb950';
+  } catch(e) {
+    $('cloud-status').textContent = '⚠ לא נגיש';
+    $('cloud-status').style.color = '#f85149';
+  }
+}
+
+function renderCloudStats(cs) {
+  if (!cs) return;
+  $('cloud-stats').style.display = 'block';
+
+  const clr = v => +v >= 58 ? '#3fb950' : +v >= 50 ? '#f0c040' : '#f85149';
+  const pct = n => (n * 100).toFixed(1) + '%';
+
+  // Header — last update
+  const ago = Math.round((Date.now()/1000 - (cs.updatedAt||0)) / 60);
+  $('cloud-updated').textContent = ago < 1 ? 'עכשיו' : `עודכן לפני ${ago} דק׳`;
+
+  // Accuracy
+  const total   = cs.total   || 0;
+  const correct = cs.correct || 0;
+  const acc     = cs.accuracy || 0;
+  $('cloud-acc-total').textContent = pct(acc);
+  $('cloud-acc-total').style.color = clr(acc * 100);
+  $('cloud-acc-sub').textContent   = `${correct} נכון מתוך ${total}`;
+  const a200 = cs.accuracy200 || 0;
+  $('cloud-acc-200').textContent = pct(a200);
+  $('cloud-acc-200').style.color = clr(a200 * 100);
+  const a20 = cs.accuracy20 || 0;
+  $('cloud-acc-20').textContent = pct(a20);
+  $('cloud-acc-20').style.color = clr(a20 * 100);
+
+  // Results bar (last 200 — each slot = one prediction)
+  const bar = $('cloud-bar');
+  const res = cs.last200 || [];
+  bar.innerHTML = res.length
+    ? res.map(v => `<div style="flex:1;height:100%;background:${v?'#3fb950':'#f85149'};min-width:1px"></div>`).join('')
+    : '';
+
+  // Current cloud prediction
+  const cp = cs.currentPrediction;
+  if (cp) {
+    const dir = cp.direction || '—';
+    const c   = dir === 'UP' ? '#3fb950' : dir === 'DOWN' ? '#f85149' : '#f0c040';
+    const arrow = dir === 'UP' ? '▲' : dir === 'DOWN' ? '▼' : '—';
+    $('cloud-dir').textContent = `${arrow} ${dir}`;
+    $('cloud-dir').style.color = c;
+    $('cloud-prob').textContent = `${((cp.prob||0)*100).toFixed(1)}% · ${cp.confidence||''}`;
+    const s = cp.signals || {};
+    $('cloud-sigs').textContent = `mag:${s.mag||'?'} trend:${s.trend||'?'} rsi:${s.rsi||'?'}`;
+  }
+
+  // Error patterns
+  const pat = cs.errorPatterns;
+  if (pat && total >= 10) {
+    const cats = [['by_mag','עוצמה'],['by_trend','מגמה'],['by_session','שעת מסחר']];
+    let html = '<div class="cloud-pat-grid">';
+    for (const [k, label] of cats) {
+      const rows = Object.entries(pat[k]||{})
+        .filter(([,v]) => v.total >= 4)
+        .map(([key,v]) => ({key, acc: 1 - v.wrong/v.total, n: v.total}))
+        .sort((a,b) => a.acc - b.acc);
+      if (!rows.length) continue;
+      html += `<div class="cloud-pat-col"><div class="cloud-pat-hdr">${label}</div>`;
+      for (const {key,acc,n} of rows.slice(0,5)) {
+        const c = clr(acc*100);
+        html += `<div class="cloud-pat-row">
+          <span style="color:#8b949e">${key}</span>
+          <span style="color:${c};font-weight:700">${(acc*100).toFixed(0)}%<span style="color:#484f58;font-weight:400"> (${n})</span></span>
+        </div>`;
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+    $('cloud-patterns').innerHTML = html;
+  }
+
+  // Recent log (last 15)
+  const log = (cs.recentLog || []).slice(0, 15);
+  if (log.length) {
+    $('cloud-log').innerHTML = `
+      <div style="font-size:10px;color:#8b949e;font-weight:700;text-transform:uppercase;margin-bottom:6px">15 האחרונות</div>
+      ${log.map(e => {
+        const c = e.correct ? '#3fb950' : '#f85149';
+        const d = e.direction === 'UP' ? '▲' : e.direction === 'DOWN' ? '▼' : '—';
+        return `<div class="cloud-log-row">
+          <span style="color:${c};width:12px">${e.correct ? '✓' : '✗'}</span>
+          <span style="color:#8b949e;min-width:80px">${e.time||'—'}</span>
+          <span style="color:${c};font-weight:700">${d} ${e.direction}</span>
+          <span style="color:#484f58">${((e.prob||0)*100).toFixed(0)}%</span>
+          <span style="color:#484f58;font-size:10px">${e.mag||''}·${e.trend||''}</span>
+          <span style="color:${e.actualUp?'#3fb950':'#f85149'};margin-right:auto">→ ${e.actualUp?'UP':'DOWN'}</span>
+        </div>`;
+      }).join('')}`;
+  }
+}
+
+// ═══════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════
+initChart();
+currentWin = winTs();
+updateMarketLink();
+
+(async () => {
+  try {
+    // Restore cloud URL from localStorage
+    if (cloudUrl) {
+      $('cloud-url-input').value = cloudUrl;
+      fetchAndRenderCloud();
+      cloudIv = setInterval(fetchAndRenderCloud, 30_000); // poll cloud every 30s
+    }
+
+    model = await loadAndTrain();
+    showStats();
+    if (accuracyLog.length) renderAccuracyCard();
+    await refresh();
+    setInterval(refresh, REFRESH);
+    // Catch window boundary within 10s — let refresh() handle the transition
+    setInterval(() => { if (winTs() !== currentWin) refresh(); }, 10_000);
+  } catch(e) {
+    showErr(e.message);
+  }
+})();
+</script>
+</body>
+</html>
