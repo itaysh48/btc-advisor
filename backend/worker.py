@@ -457,29 +457,30 @@ def load_stats():
             "recentLog": [], "betsLog": []}
 
 def record_outcome(stats, pred, actual_up, resolution=None):
-    if pred.get("direction") == "NEUTRAL":
-        return None  # NEUTRAL predictions are not counted in accuracy stats
+    sigs    = pred.get("signals", {})
+    pred_up = pred.get("predictedUp", True)
+    neutral = pred.get("direction") == "NEUTRAL"
+    correct = (pred_up == actual_up) if not neutral else None
 
-    sigs     = pred.get("signals", {})
-    pred_up  = pred.get("predictedUp", True)
-    correct  = pred_up == actual_up
+    # Only count directional UP/DOWN calls in accuracy stats
+    if not neutral:
+        stats["total"]   += 1
+        if correct: stats["correct"] += 1
+        stats["last200"].append(1 if correct else 0)
+        if len(stats["last200"]) > 200: stats["last200"].pop(0)
 
-    stats["total"]   += 1
-    if correct: stats["correct"] += 1
-    stats["last200"].append(1 if correct else 0)
-    if len(stats["last200"]) > 200: stats["last200"].pop(0)
+        def pat(cat, key):
+            if key not in stats["errorPatterns"][cat]:
+                stats["errorPatterns"][cat][key] = {"total": 0, "wrong": 0}
+            stats["errorPatterns"][cat][key]["total"] += 1
+            if not correct: stats["errorPatterns"][cat][key]["wrong"] += 1
 
-    def pat(cat, key):
-        if key not in stats["errorPatterns"][cat]:
-            stats["errorPatterns"][cat][key] = {"total": 0, "wrong": 0}
-        stats["errorPatterns"][cat][key]["total"] += 1
-        if not correct: stats["errorPatterns"][cat][key]["wrong"] += 1
+        pat("by_mag",     sigs.get("mag",   "?"))
+        pat("by_trend",   sigs.get("trend", "?"))
+        pat("by_session", time_ctx(pred.get("winTs", 0)))
+        pat("by_key",     pred.get("fKey",  "?"))
 
-    pat("by_mag",     sigs.get("mag",   "?"))
-    pat("by_trend",   sigs.get("trend", "?"))
-    pat("by_session", time_ctx(pred.get("winTs", 0)))
-    pat("by_key",     pred.get("fKey",  "?"))
-
+    # Always add to history log (so betting history table stays complete)
     ts    = pred.get("winTs", 0)
     label = datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%m/%d %H:%M") if ts else "?"
     entry = {"winTs": ts, "time": label,
@@ -489,7 +490,6 @@ def record_outcome(stats, pred, actual_up, resolution=None):
              "reversal": sigs.get("reversal", "none"),
              "crowdUp": pred.get("crowdUpProb")}
 
-    # Store open/close prices for the bets log
     if resolution:
         entry["priceToBeat"] = round(resolution["priceToBeat"], 2)
         entry["finalPrice"]  = round(resolution["finalPrice"],  2)
@@ -498,7 +498,6 @@ def record_outcome(stats, pred, actual_up, resolution=None):
     stats["recentLog"].insert(0, entry)
     if len(stats["recentLog"]) > 100: stats["recentLog"].pop()
 
-    # Dedicated bets log (richer data for the UI panel)
     if "betsLog" not in stats: stats["betsLog"] = []
     stats["betsLog"].insert(0, entry)
     if len(stats["betsLog"]) > 50: stats["betsLog"].pop()
